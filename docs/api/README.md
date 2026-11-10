@@ -55,4 +55,4 @@
 - [通用资源总线 (resource)](./resource/README.md)
 - [文章扩展 (articles)](./articles/search.md)
 - [文件上传 (upload)](./upload/file.md)
-- [其他接口 (other)](./other/index.md)
+- [其他接口 (获取公钥 校验登录态 用户模块 文件上传)](./other/index.md)

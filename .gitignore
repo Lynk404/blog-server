@@ -28,3 +28,8 @@ auth/
 # pnpm / Turborepo 等工具缓存
 .turbo/
 .pnpm-debug.log*
+
+# AI coding
+.agent
+.claude
+CLAUDE.md
