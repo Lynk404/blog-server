@@ -1,8 +1,10 @@
 # 数据库设计说明文档
 
-本项目使用 MongoDB 作为持久化数据库，通过 Mongoose 进行对象建模。以下为各个集合（Collection）的详细字段说明及关联关系。
+使用 MongoDB 作为持久化数据库，通过 Mongoose 进行对象建模。以下为各个集合（Collection）的详细字段说明及关联关系。
+> 数据库：**MongoDB**　ODM：**Mongoose 5**
+> 共 5 个集合：`User`、`Column`、`Article`、`Comment`、`Key`。
 
-## 🗺️ 实体关系图 (ER 映射)
+## 实体关系图 (ER 映射)
 
 ```test
 [USER] (用户)
@@ -12,12 +14,14 @@
    │                  │  多)
    ├── (1对多) ──> [COMMENT] (评论)
    │                  │
-   └── (1对多) ──> [COLUMN] (专栏) 
+   └── (1对多) ──> [COLUMN] (专栏)
                       │
                       └── (1对多) ──> [ARTICLE] (文章)
 ```
 
-## 📊 集合详情说明
+---
+
+## 集合详情说明
 
 ### 1. User (用户表)
 用于存储系统用户及鉴权信息。
@@ -74,6 +78,39 @@
 | :--- | :--- | :---: | :--- |
 | `content` | String | 是 | RSA 公钥字符串 |
 | `date` | Date | 否 | 生成时间 |
+
+---
+
+## 关系汇总
+
+| 关系 | 实现字段 | 说明 |
+| --- | --- | --- |
+| User → Article | `Article.author` | 一个用户多篇文章 |
+| User → Comment | `Comment.uid` | 一个用户多条评论 |
+| User → Column | `Column.uid` | 一个用户多个专栏 |
+| Column → Article | `Article.column` / `Column.aids` | 双向引用 |
+| Article → Comment | `Comment.aid` / `Article.comments` | 双向引用 |
+
+---
+
+## 索引与约束
+
+| 集合 | 唯一键 | 说明 |
+| --- | --- | --- |
+| User | `username` | 用户名唯一，重复插入报 `duplicate key error` |
+| User | `email` | 邮箱唯一 |
+| Column | `name` | 专栏名唯一 |
+
+> 上述唯一约束由 `app.js` 的全局错误处理器捕获 `duplicate key error`，转换为 `422` + `xxx不能重复` 返回。
+
+---
+
+## 数据一致性说明
+
+- 创建 **Comment** 时同步向 `Article.comments` push ID，并 `comment_num + 1`。
+- 创建 **Article** 时同步向 `Column.aids` push ID。
+- 访问 **Article** 详情时 `hit_num + 1`。
+- 更新资源时自动刷新 `date` 字段。
 
 ---
 

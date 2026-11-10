@@ -178,41 +178,73 @@ index.html
 
 
 
-# Blog Server 后端服务 (Node.js + Express + MongoDB)
+# Blog Server
 
-基于 Node.js + Express + MongoDB (Mongoose) 构建的博客系统后端 API，包含用户鉴权、文章管理、专栏分类、评论系统及 RSA 非对称加密传输。
+基于 **Node.js + Express + MongoDB** 的前后端分离博客后端，提供注册登录、JWT 鉴权、RSA 加密传输、文章 / 专栏 / 评论的通用资源接口、文件上传、文章搜索与点赞等功能。
+
+> 详细接口说明见 [API 文档](./docs/api/README.md)，数据库字段见 [数据库设计](./docs/db/README.md)。
+
+---
+
+## 📚 文档
+
+| 文档 | 说明 |
+| --- | --- |
+| [API 接口文档](./docs/api/README.md) | 全部 HTTP 接口、请求 / 响应、鉴权规则、资源权限矩阵 |
+| [数据库设计文档](./docs/db/README.md) | 5 个 MongoDB 集合的字段、约束与关联关系 |
+
+---
 
 ## 🛠️ 技术栈
-- **运行环境**: Node.js
-- **Web 框架**: Express
-- **数据库**: MongoDB (Mongoose)
-- **安全与鉴权**: JWT (jsonwebtoken) + RSA (node-rsa) + JWT (express-jwt)
-- **文件管理**: Multer (文件上传)
-- **开发工具**: Nodemon (热更新)
+
+| 分类 | 技术 / 库 |
+| --- | --- |
+| 运行时 | Node.js |
+| Web 框架 | Express 4 |
+| 数据库 | MongoDB + Mongoose 5 |
+| 鉴权 | JSON Web Token（`jsonwebtoken`、`express-jwt`）、RSA 非对称加密（`node-rsa`） |
+| 请求处理 | `cors`、`cookie-parser`、`qs` |
+| 日志 | `morgan`、`debug` |
+| 文件上传 | `multer` |
+| 错误处理 | `http-assert`、`http-errors` |
+| 命名转换 | `inflection`（复数 → 单数 Pascal 命名，用于动态加载 Model） |
+| 模板引擎 | `hbs`（保留，当前未使用） |
+| 客户端示例依赖 | `jquery`、`axios` |
+| 开发工具 | `nodemon`（`npm start` 热更新） |
+
+---
 
 ## 📂 目录结构
+
 ```text
 blog-server/
-├── .vscode/
-├── auth/            # 临时存放密钥
-├── bin/            # 启动入口 (www)
-├── core/           # 核心逻辑（工具函数、RSA控制等）
-├── docs/api         # 项目api具体说明
-├──     /db         # 项目数据库具体说明
-├── middleware/         # bus总线经过这儿（我也不知道写什么了）
-├── models/         # Mongoose 数据模型
-├── node_modules/
-├── plugins/        # 数据库连接等插件
-├── public/         # 本地临时文件
-├── routes/         # 路由控制器
-├── uploads/         # 静态资源目录
-├── config.js       # 全局配置文件（数据库地址、密钥路径等）
+├── auth/            # RSA 密钥文件（运行时生成）
+├── bin/             # 启动入口 (www)
+├── core/            # 核心逻辑（工具函数、RSA 控制）
+├── docs/
+│   ├── api/         # API 接口详细说明
+│   └── db/          # 数据库字段详细说明
+├── middleware/      # 中间件（resource：根据 URL 动态加载 Model）
+├── models/          # Mongoose 数据模型（User/Article/Column/Comment/Key）
+├── plugins/         # 插件（数据库连接、POP_* 映射表等）
+├── public/          # 公共静态资源
+├── routes/          # 路由控制器（bus/admin/user/upload/search/likes...）
+├── uploads/         # 上传文件静态目录
+├── app.js           # Express 应用入口
+├── config.js        # 全局配置
 ├── package.json
-├── package-lock.json
-├── README.md
-├── .gitignore
-└── app.js          # Express 应用配置
+└── ...
 ```
+
+## ⚙️ 配置说明（`config.js`）
+
+| 字段 | 说明 |
+| --- | --- |
+| `host` / `port` | 服务监听地址与端口（默认 `127.0.0.1:3000`） |
+| `keyPath` | RSA 密钥目录 |
+| `pubKeyPath` / `priKeyPath` | 公钥 / 私钥文件路径 |
+| `uploadPath` / `uploadURL` | 上传文件存储目录与对外访问前缀 |
+| `maxFileSize` | 单文件最大字节数（默认 102400，约 100KB） |
 
 ## 📂 核心数据模型
 项目包含 5 个核心数据集合（详见 [DATABASE.md](./DATABASE.md)）：
@@ -222,104 +254,42 @@ blog-server/
 4. `Comment`: 评论表
 5. `Key`: 系统公钥/私钥存储表
 
+> 数据库连接配置见 `plugins/db`。
+
+---
+
+## 🔐 鉴权一览
+
+- 登录成功后返回 **JWT**，后续请求需在请求头携带：
+  `Authorization: Bearer <token>`
+- **免鉴权**：`GET /api/rest/*`、`POST /admin/login`、`POST /admin/register`、`GET /keys`、`GET /articles/search`、`POST /articles/likes`
+- **需鉴权**：其余所有接口
+- 密码通过 **RSA 非对称加密**传输（前端用公钥加密，服务端用私钥解密）
+
+详见 [API 文档 - 鉴权章节](./docs/api/README.md#鉴权)。
+
+---
+
+## 📜 NPM Scripts
+
+| 命令 | 说明 |
+| --- | --- |
+| `npm start` | `nodemon ./bin/www`，开发模式启动 |
+
+---
+
 ## 🚀 快速开始
 
-### 1. 环境准备
-确保本地已安装并启动了 MongoDB 服务（默认端口 `27017`）。
-
-### 2. 安装依赖
 ```bash
+# 1. 安装依赖
 npm install
+
+# 2. 确保本地 MongoDB 已启动（默认 127.0.0.1:27017）
+
+# 3. 启动服务（nodemon 热更新）
+npm start
 ```
 
-### 3. 开始
-```bash
-npm run start
-```
+默认服务地址：`http://127.0.0.1:3000`
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### 📄 文档二：`DATABASE.md`（数据库设计说明文档）
-
-你可以直接把以下内容复制到 `blog-server/DATABASE.md` 中。
-
-```markdown
-# 数据库设计说明 (Database Schema)
-
-本项目采用 MongoDB 作为持久化存储，使用 Mongoose 进行 ODM 映射。共包含 5 个核心集合（Collection），分别是：`User`、`Column`、`Article`、`Comment`、`Key`。
-
-## 📊 实体关系图 (ER Diagram)
-
-```mermaid
-erDiagram
-    USER ||--o{ ARTICLE : "撰写 (author)"
-    USER ||--o{ COMMENT : "发表 (uid)"
-    USER ||--o{ COLUMN : "创建 (uid)"
-    
-    COLUMN ||--o{ ARTICLE : "包含 (column/aids)"
-    
-    ARTICLE ||--o{ COMMENT : "拥有 (aid/comments)"
-
-    USER {
-        ObjectId _id PK
-        String username "用户名, 唯一"
-        String password "密码, 加密存储"
-        String email "邮箱, 唯一"
-        String avatar "头像"
-        String nikname "昵称"
-        String signature "签名"
-    }
-
-    COLUMN {
-        ObjectId _id PK
-        String name "专栏名, 唯一"
-        Date date "创建时间"
-        ObjectId[] aids "关联文章IDs (外键)"
-        ObjectId uid "作者ID (外键)"
-    }
-
-    ARTICLE {
-        ObjectId _id PK
-        String title "标题"
-        String cover "封面图"
-        String content "内容, URI编码"
-        Date date "发布时间"
-        Number hit_num "点击量"
-        Number comment_num "评论数"
-        Number like_num "点赞数"
-        ObjectId author "作者ID (外键)"
-        ObjectId[] comments "关联评论IDs (外键)"
-        ObjectId column "所属专栏ID (外键)"
-    }
-
-    COMMENT {
-        ObjectId _id PK
-        String content "评论内容"
-        Date date "评论时间"
-        ObjectId uid "评论者ID (外键)"
-        ObjectId aid "文章ID (外键)"
-    }
-    
-    KEY {
-        ObjectId _id PK
-        String content "RSA公钥内容"
-        Date date "生成时间"
-    }
-```
-
-
+---
