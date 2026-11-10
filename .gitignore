@@ -1,0 +1,30 @@
+# 操作系统 & IDE
+.DS_Store
+.idea/
+.vscode/
+*.suo
+
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 通用构建产物
+dist/
+build/
+coverage/
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# 环境变量（敏感信息，务必忽略）
+.env
+.env.local
+.env.*.local
+auth/
+
+# pnpm / Turborepo 等工具缓存
+.turbo/
+.pnpm-debug.log*

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <h1 id="title" data-id="5fdca8c6b5c4b9066085fcec">标题</h1>
+  <div id="content">内容1231231231</div>
+
+  <input type="file" multiple id="file">
+  <input type="submit">
+  <script src="./node_modules/axios/dist/axios.js"></script>
+  <script src="./node_modules/jquery/dist/jquery.min.js"></script>
+  <script>
+    let submit = document.querySelector('input[type=submit]')
+    let fileInput = document.querySelector('input[type=file]')
+
+    submit.onclick = function () {
+      let formData = new FormData()
+      let files = fileInput.files
+      formData.append('file', files)
+      axios.post('http://127.0.0.1:3000/upload/article', formData)
+
+    }
+
+  </script>
+</body>
+
+</html>
