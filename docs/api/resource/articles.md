@@ -3,8 +3,7 @@
 > 基础路径：`/api/rest/articles`
 
 ## 字段说明 (Body)
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
+| 字段 | 类型 | 必填 | 说明 
 | `title` | String | 是 | 文章标题 |
 | `cover` | String | 否 | 封面图 URL |
 | `content` | String | 是 | 正文内容（富文本） |

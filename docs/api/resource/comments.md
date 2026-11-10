@@ -4,7 +4,6 @@
 
 ## 字段说明 (Body)
 | 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
 | `content` | String | 是 | 评论文字 |
 | `aid` | String | **是** | 所属文章 ID（后台会联动将评论 ID `push` 到文章的 `comments` 列表中，并让 `comment_num` +1） |
 | `uid` | String | 否 | **禁止前端传值**，后台自动注入当前用户 ID |

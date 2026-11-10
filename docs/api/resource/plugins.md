@@ -10,7 +10,6 @@
 **作用**：在数据 `POST` 保存到数据库前，强行注入当前登录用户的 ID，防止前端恶意伪造作者。同时可以扩展其他固定字段。
 
 | 资源 | 注入字段 | 说明 |
-| --- | --- | --- |
 | `Article` | `author = req._id` | 创建文章时，自动将当前用户设为作者 |
 | `Column` | `uid = req._id` | 创建专栏时，自动记录创建者 ID |
 | `Comment` | `uid = req._id` | 创建评论时，自动记录评论者 ID |
@@ -23,8 +22,7 @@
 
 **作用**：在数据 `POST` 成功后，触发其他表的级联更新（Cascading Updates），保证数据的一致性。
 
-| 资源 | 必填外键 | 联动操作 | 说明 |
-| --- | --- | --- | --- |
+| 资源 | 必填外键 | 联动操作 | 说明 
 | `Comment` | `aid` (文章ID) | 更新 `Article` | 向对应文章的 `comments` 数组 `$push` 新评论 ID，并让 `comment_num` 加 1。 |
 | `Article` | `column` (专栏ID) | 更新 `Column` | 向对应专栏的 `aids` 数组 `$push` 新文章 ID。 |
 
@@ -37,7 +35,6 @@
 **作用**：在 `GET` 获取单条详情时，触发的隐性数据更新（如阅读量自增）。
 
 | 资源 | 联动操作 | 说明 |
-| --- | --- | --- |
 | `Article` | `hit_num + 1` | 用户每访问一次文章详情（GET），阅读量自动加 1。 |
 
 **注意**：这个操作是异步的，不会阻塞详情数据的返回。
@@ -49,7 +46,6 @@
 **作用**：在 `PUT` 更新数据时，提供双重安全保护：**白名单过滤** + **归属权校验**。
 
 | 资源 | 允许修改字段 (`revisable`) | 归属校验字段 (`authField`) |
-| --- | --- | --- |
 | `Article` | `title`, `cover`, `content` | `author` (必须是文章作者) |
 | `User` | `password`, `email`, `nikname` | `_id` (只能改自己) |
 | `Comment` | `content` | `uid` (必须是评论者) |
@@ -63,8 +59,7 @@
 
 **作用**：在 `GET` 列表或详情时，自动替换外键 ID 为实际数据对象（Mongoose 的 `populate` 机制），减少前端请求次数。
 
-| 资源 | 填充字段 (path) | 提取子字段 (select) | 嵌套填充 |
-| --- | --- | --- | --- |
+| 资源 | 填充字段 (path) | 提取子字段 (select) | 嵌套填充 
 | `Article` | `author` | `nikname`, `avatar` | 无 |
 | | `column` | `name` | 无 |
 | | `comments` | `content`, `date`, `uid` | 嵌套填充评论者的 `uid` (`nikname`, `avatar`) |
@@ -80,7 +75,6 @@
 **作用**：将 MongoDB 抛出的英文报错字段（如唯一索引冲突），翻译成友好的中文提示。
 
 | 英文字段 | 中文翻译 |
-| --- | --- |
 | `username` | 用户名 |
 | `password` | 密码 |
 | `email` | 邮箱 |

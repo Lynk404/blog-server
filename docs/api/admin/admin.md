@@ -4,9 +4,7 @@
 **POST** `/admin/login`
 
 **请求体**
-
 | 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
 | `username` | string | 是 | 用户名 |
 | `password` | string | 是 | RSA 加密后的密码 |
 
@@ -17,7 +15,7 @@
   "message": "登录成功",
   "data": {
     "token": "<jwt>",
-    "userInfo": { "_id": "...", "username": "...", "nikname": "...", "avatar": "..." }
+    "userId": "5fddfce41140ac3418062094"
   }
 }
 ```
@@ -26,9 +24,7 @@
 **POST** `/admin/register`
 
 **请求体**
-
 | 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
 | `username` | string | 是 | 用户名（唯一） |
 | `password` | string | 是 | RSA 加密后的密码 |
 | `email` | string | 否 | 邮箱（唯一） |
@@ -36,7 +32,6 @@
 | `avatar` | string | 否 | 头像 URL |
 
 **响应**
-
 ```json
 { "code": 200, "message": "注册成功" }
 ```

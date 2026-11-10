@@ -24,7 +24,6 @@
 **POST** `/upload` （需鉴权）
 **Content-Type**：`multipart/form-data`
 | 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
 | `file` | File | 是 | 上传文件，受 `config.maxFileSize` 限制 |
 | `uid` | string | 视场景 | 当分类为 `user`（头像）时必填 |
 | `classIfy` | string | 否 | 文件分类，如 `user` / `article` |
