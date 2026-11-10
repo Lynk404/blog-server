@@ -1,0 +1,14 @@
+# 评论资源 (Comments)
+
+> 基础路径：`/api/rest/comments`
+
+## 字段说明 (Body)
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `content` | String | 是 | 评论文字 |
+| `aid` | String | **是** | 所属文章 ID（后台会联动将评论 ID `push` 到文章的 `comments` 列表中，并让 `comment_num` +1） |
+| `uid` | String | 否 | **禁止前端传值**，后台自动注入当前用户 ID |
+
+## 特殊规则
+1. **更新限制**：`PUT /api/rest/comments/:id` 只能修改 `content`，且必须是评论者本人操作。
+2. **关联查询**：获取评论列表时，后台自动 populate 评论者的头像与昵称(`uid`)。
