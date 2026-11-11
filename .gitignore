@@ -23,7 +23,7 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
-auth/
+/auth/
 
 # pnpm / Turborepo 等工具缓存
 .turbo/
@@ -33,5 +33,5 @@ auth/
 .agent
 .claude
 .claude/
-CLAUDE.md
 .claudeignore
+scripts/regress/run.js
