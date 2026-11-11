@@ -8,7 +8,7 @@ const createError = require('http-errors')
 const assert = require('http-assert')
 const qs = require('qs')
 
-const { pagination } = require('../core/util/util')
+const { pagination, escapeRegExp } = require('../core/util/util')
 
 const POPULATE_MAP = require('../plugins/POPULATE_MAP')
 const POP_POST_MAP = require('../plugins/POP_POST_MAP')
@@ -16,11 +16,22 @@ const POP_GET_MAP = require('../plugins/POP_GET_MAP')
 const POP_PUT_MAP = require('../plugins/POP_PUT_MAP')
 const RESOURCE_POST_MAP = require('../plugins/RESOURCE_POST_MAP')
 
+// 免鉴权的 GET 只暴露展示字段：强制 select，忽略用户传入的 options，query 仅允许白名单字段
+// （否则 options[select]=+password 可读到密码密文，query[email] 可枚举邮箱）
+const PUBLIC_VIEW = {
+  User: {
+    select: 'nikname avatar signature',
+    queryKeys: ['nikname']
+  }
+}
+
 
 //创建资源
 router.post('/', async (req, res,next) => {
+  let modelName = req.Model.modelName
+  // 用户注册统一走 /admin/register，总线不提供创建用户的入口
+  if (modelName === 'User') return next(createError(404))
   try {
-    let modelName = req.Model.modelName
     let body = req.body
     if(modelName in RESOURCE_POST_MAP){
       body = RESOURCE_POST_MAP[modelName]['body'](body,req._id)
@@ -54,6 +65,9 @@ router.put('/:id', async (req, res, next) => {
   let isPass = req.isPass //鉴权结果
   let userId = req._id //userID
 
+  // 用户资料只通过 PUT /user 修改（需校验旧密码），总线不提供该入口
+  if (modelName === 'User') return next(createError(404))
+
   try{
     let { revisable,authField } = POP_PUT_MAP[modelName]
     let isValidate = (modelName in POP_PUT_MAP) && isPass
@@ -80,12 +94,35 @@ router.put('/:id', async (req, res, next) => {
   }
 })
 
-//删除资源
-router.delete('/:id', async (req, res) => {
-  await req.Model.findByIdAndDelete(req.params.id)
-  res.send({
-    errMsg: 'ok'
-  })
+//删除资源（仅作者可删，同步清理关联引用）
+router.delete('/:id', async (req, res, next) => {
+  let modelName = req.Model.modelName
+  let id = req.params.id
+  let isPass = req.isPass
+  let userId = req._id
+  // 用户不允许通过总线删除，总线不提供该入口
+  if (modelName === 'User') return next(createError(404))
+  try {
+    // 未在 POP_PUT_MAP 中声明的模型同样拒绝
+    assert(isPass && modelName in POP_PUT_MAP, 403, '无权删除')
+    let { authField } = POP_PUT_MAP[modelName]
+    let data = await req.Model.findById(id)
+    assert(data, 404, '资源不存在')
+    assert.equal(userId, data[authField], 403, '无权删除')
+    await req.Model.findByIdAndDelete(id)
+    // 清理父文档中的引用：评论从文章移除并减少 comment_num，文章从专栏移除
+    if (modelName === 'Comment') {
+      await Article.updateOne({ _id: data.aid, comments: id }, { $pull: { comments: id }, $inc: { comment_num: -1 } })
+    }
+    if (modelName === 'Article') {
+      await Column.updateOne({ _id: data.column }, { $pull: { aids: id } })
+    }
+    res.send({
+      errMsg: 'ok'
+    })
+  } catch (err) {
+    next(err)
+  }
 })
 
 //查询资源列表
@@ -95,7 +132,7 @@ router.get('/', async (req, res,next) => {
  
   query = qs.parse(query)
   if(query.q){
-    let regexp = new RegExp(query.q, 'i')
+    let regexp = new RegExp(escapeRegExp(query.q), 'i')
     query = {
       $or: [
         { title: { $regex: regexp } },
@@ -107,6 +144,11 @@ router.get('/', async (req, res,next) => {
   try{
     if(modelName in POPULATE_MAP){
       populate =  POPULATE_MAP[modelName]
+    }
+    if (modelName in PUBLIC_VIEW) {
+      let { select, queryKeys } = PUBLIC_VIEW[modelName]
+      options = select
+      query = Object.fromEntries(Object.entries(query).filter(([key]) => queryKeys.includes(key)))
     }
     let result = await pagination({model:req.Model,query,options,populate, size, page, dis})
     res.send(200,{
@@ -120,28 +162,31 @@ router.get('/', async (req, res,next) => {
 })
 
 //查询资源详情
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req, res, next) => {
   let modelName = req.Model.modelName
   let _id = req.params.id
   try{
-    let result =  req.Model.findById(_id)
-    if(modelName in POPULATE_MAP){
-      let populates =  POPULATE_MAP[modelName]
-      result =  result.populate(populates)
-      result = await result.exec()
-      res.send(200, {
-          message: '查询成功',
-          data: result
-      })
+    let query = req.Model.findById(_id)
+    if(modelName in PUBLIC_VIEW){
+      query = query.select(PUBLIC_VIEW[modelName].select)
     }
-    //通过ID查看资源的联动操作
+    if(modelName in POPULATE_MAP){
+      query = query.populate(POPULATE_MAP[modelName])
+    }
+    let result = await query.exec()
+    assert(result, 404, '资源不存在')
+    res.send(200, {
+        message: '查询成功',
+        data: result
+    })
+    //通过ID查看资源的联动操作（异步执行，不阻塞响应）
     if(modelName in POP_GET_MAP){
       let {queryAct,options} = POP_GET_MAP[modelName]
-      await req.Model[queryAct](_id,options())
+      req.Model[queryAct](_id,options()).catch(err => console.log(err))
     }
 
   }catch(err){
-    console.log(err)
+    next(err)
   }
 
 })

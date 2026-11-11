@@ -5,7 +5,7 @@ const User = require('../models/User')
 const Column = require('../models/Column')
 const Comment = require('../models/Comment')
 const assert = require('http-assert');
-const { pagination } = require('../core/util/util')
+const { pagination, escapeRegExp } = require('../core/util/util')
 const createError = require('http-errors')
 const qs = require('qs')
 /*
@@ -26,15 +26,16 @@ router.get('/', async (req, res, next) => {
 
   let modelName = 'Article'
   let { options = {}, page = 1, size = 100, query = {}, dis = 8, populate = {} } = req.query
-  query = qs.parse(query)
-  let regexp = new RegExp(query.q, 'i')
-  query = {
-    $or: [
-      { title: { $regex: regexp } },
-      { content: { $regex: regexp } }
-    ]
-  }
   try {
+    query = qs.parse(query)
+    assert(query.q, 400, '搜索关键词不能为空')
+    let regexp = new RegExp(escapeRegExp(query.q), 'i')
+    query = {
+      $or: [
+        { title: { $regex: regexp } },
+        { content: { $regex: regexp } }
+      ]
+    }
     if (modelName in POPULATE_MAP) {
       populate = POPULATE_MAP[modelName]
     }
@@ -44,6 +45,7 @@ router.get('/', async (req, res, next) => {
       data: result
     })
   } catch (err) {
+    if (err.status === 400) return next(err)
     console.log(err)
     next(createError(422, "获取失败"))
   }

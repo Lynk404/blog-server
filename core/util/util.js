@@ -103,10 +103,16 @@ function formatDate(date = new Date(), format = "yyyy-MM-dd hh:mm:ss") {
 }
 
 
+// 转义正则特殊字符，用于把用户输入当作普通字符串匹配
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 module.exports = {
   generateKeys,
   encrypt,
   decrypt,
   pagination,
-  formatDate
+  formatDate,
+  escapeRegExp
 };

@@ -11,4 +11,5 @@
 
 ## 特殊规则
 1. **更新限制**：`PUT /api/rest/comments/:id` 只能修改 `content`，且必须是评论者本人操作。
+1.1 **删除限制**：`DELETE /api/rest/comments/:id` 只能由评论者本人操作，非评论者返回 `403`。删除后会从所属文章的 `comments` 中移除该评论 ID，并使 `comment_num` 减 1。
 2. **关联查询**：获取评论列表时，后台自动 populate 评论者的头像与昵称(`uid`)。

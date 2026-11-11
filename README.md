@@ -67,7 +67,7 @@ blog-server/
 | `maxFileSize` | 单文件最大字节数（默认 102400，约 100KB） |
 
 ## 📂 核心数据模型
-项目包含 5 个核心数据集合（详见 [DATABASE.md](./DATABASE.md)）：
+项目包含 5 个核心数据集合（详见 [数据库设计文档](./docs/db/README.md)）：
 1. `User`: 用户表（支持昵称、头像、签名，密码基于 RSA 加密传输）
 2. `Column`: 专栏/分类表
 3. `Article`: 文章表

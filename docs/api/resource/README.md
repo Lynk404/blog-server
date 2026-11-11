@@ -11,10 +11,10 @@
 | GET | `/api/rest/:resource` | 否 | 获取列表，支持 `page, size, query, options` 等参数 |
 | GET | `/api/rest/:resource/:id` | 否 | 获取详情 |
 | POST | `/api/rest/:resource` | 是 | 创建资源 |
-| PUT | `/api/rest/:resource/:id` | 是 | 更新资源（仅作者可改） |
-| DELETE | `/api/rest/:resource/:id`| 是 | 删除资源 |
+| PUT | `/api/rest/:resource/:id` | 是 | 更新资源（仅作者可改；`users` 不支持，见下文） |
+| DELETE | `/api/rest/:resource/:id`| 是 | 删除资源（仅作者可删；`users` 不支持） |
 
-> ⚠️ 当前 bus 的删除逻辑未做作者校验，任意登录用户可删除任意资源。
+> `users` 资源没有总线的 POST / PUT / DELETE 入口（直接返回 `404`）：注册请用 `/admin/register`，修改资料请用 `/user`（见 [其他接口](../other/other.md)）。`users` 的公开 GET 只返回展示字段，详见 [用户资源](./users.md)。
 
 ---
 
@@ -43,7 +43,7 @@ URL 中的 `:resource` 采用**复数形式**，框架底层会通过 `inflectio
 | `GET` | `/api/rest/:resource/:id` | 否 | 获取单条资源详情 |
 | `POST` | `/api/rest/:resource` | 是 | 创建资源 |
 | `PUT` | `/api/rest/:resource/:id` | 是 | 更新资源（需作者身份与字段白名单） |
-| `DELETE`| `/api/rest/:resource/:id` | 是 | 删除资源 |
+| `DELETE`| `/api/rest/:resource/:id` | 是 | 删除资源（仅作者可删，同步清理父文档引用） |
 
 > **业务差异**：不同资源的必填字段、更新白名单、级联联动等业务规则各不相同，请查阅具体的资源说明文档。
 > 底层联动机制与注入原理请查阅：[插件映射机制说明 (plugins.md)](./plugins.md)。
@@ -123,7 +123,7 @@ GET /api/rest/articles?options[sort]=-date&options[select]=title,cover
 
 1. **GET 接口免鉴权**：资源列表和详情对外公开，无需携带 Token。
 2. **写操作需鉴权**：POST / PUT / DELETE 必须在 Header 中携带 `Authorization: Bearer <token>`。
-3. **归属权校验**：PUT 和 DELETE 操作通常需要通过 `POP_PUT_MAP` 校验当前用户是否为该资源的所有者（如文章作者、评论发布者）。
+3. **归属权校验**：PUT 和 DELETE 操作通过 `POP_PUT_MAP` 校验当前用户是否为该资源的所有者（如文章作者、评论发布者）。非所有者返回 `400`（PUT）或 `403`（DELETE）。`users` 资源没有总线的 PUT / DELETE 入口，直接返回 `404`。
 4. **字段白名单**：PUT 操作不允许全量更新，只允许更新白名单内的特定字段（如文章只允许改标题、内容），防止恶意篡改阅读量等核心数据。
 
 ---

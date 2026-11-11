@@ -110,6 +110,8 @@
 - 创建 **Comment** 时同步向 `Article.comments` push ID，并 `comment_num + 1`。
 - 创建 **Article** 时同步向 `Column.aids` push ID。
 - 访问 **Article** 详情时 `hit_num + 1`。
+- 删除 **Comment** 时从 `Article.comments` `$pull` 该 ID，并 `comment_num - 1`。
+- 删除 **Article** 时从 `Column.aids` `$pull` 该 ID。
 - 更新资源时自动刷新 `date` 字段。
 
 ---
@@ -130,8 +132,8 @@
 
 2. **数据一致性维护**
    - 由于计数器和双向关联的存在，在编写删除或更新接口时：
-     - 新增/删除评论时，需同步更新 `Article.comment_num` 字段。
-     - 删除文章时，需使用 `$pull` 更新 `Column.aids` 数组，并级联删除相关 `Comment`。
+     - 新增/删除评论时，需同步更新 `Article.comment_num` 字段（已实现）。
+     - 删除文章时，需使用 `$pull` 更新 `Column.aids` 数组（已实现）。相关 `Comment` 的级联删除**尚未实现**，目前会留下孤立评论。
 
 3. **内容编码处理**
    - `Article.content` 带有 `decodeURIComponent` 处理，前端富文本提交时务必先调用 `encodeURIComponent`。

@@ -22,7 +22,8 @@
 |data>>pages|总页数|是|[number]|:||1|
 |data>>display|分页数组|是|[array]|:||[1]|
 **详细说明**：
-可搜索内容{ title: { $regex: regExp } },  { content: { $regex: regExp } },文章标题 | 文章内容
+可搜索内容{ title: { $regex: regExp } },  { content: { $regex: regExp } },文章标题 | 文章内容。
+关键词会先做正则转义，按普通文本匹配；`q` 为空或缺失时返回 `400`（`搜索关键词不能为空`）。
 
 ## 2. 点赞文章
 **POST** `/articles/likes` （免鉴权）

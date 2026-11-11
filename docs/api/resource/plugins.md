@@ -57,6 +57,15 @@
 
 **防篡改机制**：如果前端尝试用 `PUT` 修改不在白名单里的字段（如 `hit_num`、`like_num`），这些字段会被直接丢弃。如果过滤后没有任何合法字段，则报错 `"修改失败"`。
 
+**DELETE 同样使用 `authField` 做归属校验**（非所有者返回 `403`）。`User` 没有总线的 PUT / DELETE 入口，直接返回 `404`（表中 `User` 行的 `authField` 仅作记录，不再用于总线校验）。删除后的联动见下表。
+
+**公开读取限制（`PUBLIC_VIEW`）**：`User` 的免鉴权 GET 强制 `select` 为 `nikname avatar signature`，列表只允许 `query[nikname]` 筛选，忽略用户传入的 `options`。
+
+| 资源 | 删除后的联动 |
+| --- | --- |
+| `Comment` | 从 `Article.comments` `$pull` 该评论 ID，并使 `comment_num` 减 1 |
+| `Article` | 从 `Column.aids` `$pull` 该文章 ID（该文章的评论暂不级联删除） |
+
 ---
 
 ## 5. 关联查询（联表查询）：`POPULATE_MAP.js`

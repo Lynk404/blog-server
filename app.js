@@ -51,7 +51,6 @@ app.use(expressJwt({
   secret: getPublicKeySync(), //解密秘钥 
   algorithms: ["RS256"], //6.0.0以上版本必须设置解密算法 
   isRevoked: async (req, payload, next) => {
-    console.log('isRevoked---------------------', payload)
     let { _id } = payload
     req._id = _id
     req.isPass = true
@@ -64,8 +63,6 @@ app.use(expressJwt({
     } catch (err) {
       next(err)
     }
-
-    next()
   }
 }).unless({
   path: [

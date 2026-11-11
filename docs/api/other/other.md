@@ -14,12 +14,27 @@
 - 已登录：`{ "code": 200, "message": "ok" }`
 - 未登录：`{ "code": 401, "message": "请先登录" }`
 
-## 用户模块 (`/user/*`)
+## 用户模块 (`/user`)
+需鉴权。挂载在 `routes/user.js`。
+
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/user/info` | 获取当前登录用户信息 |
-| PUT | `/user/info` | 更新用户信息（等同 `PUT /api/rest/users/:id`） |
-| DELETE | `/user/info` | 注销 / 删除账号 |
+| GET | `/user` | 获取当前登录用户信息，附带 `articleCount`、`columnCount` |
+| PUT | `/user` | 更新当前用户信息，仅允许 `password`、`email`、`nikname` |
+
+**PUT `/user` 请求体**
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `email` | string | 否 | 新邮箱（唯一） |
+| `nikname` | string | 否 | 新昵称 |
+| `password` | string | 否 | 新密码，RSA 加密后的密文 |
+| `oldPassword` | string | 修改 `password` 时必填 | 旧密码，RSA 加密后的密文 |
+
+- 只提交 `password` 时，必须同时提供正确的 `oldPassword`。缺少返回 `422`（`请提供旧密码`），错误返回 `422`（`旧密码错误`）。
+- 白名单之外的字段会被忽略；过滤后没有任何合法字段返回 `400`（`修改失败`）。
+
+> 注销 / 删除账号接口尚未实现。
 
 ## 文件上传
 **POST** `/upload` （需鉴权）
