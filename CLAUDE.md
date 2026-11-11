@@ -82,9 +82,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 启动前必须准备好：
   - MongoDB，地址 `mongodb://127.0.0.1:27017/db_blog`。该地址硬编码在 `plugins/db.js`，不在 `config.js`。
   - 两套独立的 RSA 密钥，`auth/` 已被 gitignore，需要手动准备：
-    - 密码加密密钥 `auth/public.cer`、`auth/private.cer`，**2048 位**。
-    - JWT 签名密钥 `auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位。缺失时 `app.js` 启动即崩溃。
-    - 两套密钥都**只读**：文件缺失时 `core/rsaControl.js` 直接抛错，不会自动生成或覆盖。
+    - 密码加密密钥 `auth/public.cer`、`auth/private.cer`，**2048 位**。由 `core/util/util.js` 的 `encrypt`/`decrypt` 直接读取，没有自动生成逻辑。
+    - JWT 签名密钥 `auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位。由 `core/rsaControl.js` 读取，缺失时 `app.js` 启动即崩溃。
+    - **两套密钥都不会自动生成或覆盖**，文件缺失时直接抛错。生成命令见下。
 - JWT 密钥生成（仅在文件不存在时生成，`wx` 标志防止覆盖）：
   ```
   node -e "const fs=require('fs'),c=require('crypto');const {publicKey:u,privateKey:r}=c.generateKeyPairSync('rsa',{modulusLength:2048,publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem'}});fs.writeFileSync('auth/jwt-private.pem',r,{flag:'wx'});fs.writeFileSync('auth/jwt-public.pem',u,{flag:'wx'})"
@@ -149,36 +149,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **2. `GET /keys` 依赖手工维护的 `Key` 集合**
 
-代码中没有任何地方写入 `Key` 文档，`GET /keys` 完全依赖它。集合为空时返回 404（不会挂起）。这是现有设计，不是缺陷，但部署和换密钥时**必须**手工同步，否则前端拿到的公钥与服务端私钥不匹配，所有登录失败。维护方法见 `docs/api/other/other.md`。
+代码中没有任何地方写入 `Key` 文档，`GET /keys` 完全依赖它。集合为空时返回 404（不会挂起）。这是现有设计，不是缺陷，但部署和换密钥时**必须**手工同步，否则前端拿到的公钥与服务端私钥不匹配，所有登录失败。用 `node scripts/sync-key.js` 同步，细节见 `docs/api/other/other.md`。
 
-### 待决定
+**3. 部署前必须改的硬编码**
 
-**MongoDB 是否升级到 ≥ 4.4。** mongoose 9 的驱动要求服务端 ≥ 4.4，本地实例是 4.2.3（wire version 8），实测会被拒绝。当前 mongoose 8 在 4.2 上运行正常，不影响开发；但 4.2 已超出官方支持期，若要部署到非本地环境，建议先升 MongoDB 再考虑 mongoose 9。**当前决定：不升。**
+两处地址写死在代码里，只在本地可用：
 
-### 暂缓（用户要求，非技术阻塞）
+| 位置 | 值 | 影响 |
+| --- | --- | --- |
+| `config.js` → `uploadURL` | `http://127.0.0.1:3000/` | 上传接口返回的图片 URL 指向本机，部署后前端拿到的地址打不开 |
+| `plugins/db.js` | `mongodb://127.0.0.1:27017/db_blog` | 数据库地址，不在 `config.js` 里 |
 
-**3. `package-lock.json` 的 `resolved` 指向镜像源**（npmmirror、taobao，共 140 处）。官方源实测可连通，但用户反馈网络不稳定，重写 lockfile 后日常 `npm install` 可能反而变慢或失败。**保持现状。**
+### 已决定，不处理
 
-**4. `npm audit` 未跑过。** 同理暂缓。
+- **MongoDB 不升级。** mongoose 9 的驱动要求服务端 ≥ 4.4，本地是 4.2.3（wire version 8），实测被拒。mongoose 8 在 4.2 上运行正常。只有"要部署到对外环境"或"要用 mongoose 9"时才需重新评估。
+- **`package-lock.json` 的镜像源保持现状。** 140 处 `resolved` 指向 npmmirror/taobao。官方源能连通，但用户所在网络不稳定，重写后日常 `npm install` 可能反而失败。同理 `npm audit` 也暂缓。
+
+若将来网络稳定，重写 lockfile 的做法：`npm install --package-lock-only --registry=https://registry.npmjs.org/`，然后务必 diff 确认只有 `resolved`/`integrity` 变化、依赖版本号一字未动（`package.json` 用的是 `^` 范围，重解析可能引入未测过的新版本）。
 
 ---
 
-## 当前状态（2026-11）
+## 工作约定
 
-工作区干净，改动已提交。回归 `node scripts/regress/run.js` **30/30 通过**。
+**改接口或数据库结构时，同步更新 `./docs/` 下对应文档**（用户的长期要求）。文档格式以现有文件为准。
 
-修复这些问题时遵循的流程，后续可复用：**先给方案 → 用户确认 → 按批次实施 → 每批跑回归 → 同步 `docs/`**。
+修改流程：**先给方案 → 用户确认 → 按批次实施 → 每批跑回归 → 同步 `docs/`**。
 
-关键实现细节（容易踩的坑）：
+几个容易踩的点（细节见"架构"）：
 
-- **双层 RSA 解密每层都要传 `'utf8'`。** `decrypt(decrypt(stored, 'utf8'), 'utf8')`。第一层漏掉会抛 `Error during decryption`，且报错信息不指向原因。
-- **创建接口走白名单。** `plugins/RESOURCE_POST_MAP.js` 的 `creatable` 决定哪些字段能进来；不在该映射表里的模型，POST 直接 404。新增可创建资源时必须在这里登记。
-- **删除文章会级联删除其下评论**，与注销账号规则一致。回归脚本的数据库审计会检查孤立评论。
-- **两套密钥都是只读的。** `auth/` 被 gitignore，文件缺失时服务启动即失败，不会自动生成。JWT 密钥手写生成命令见"命令"一节；密码密钥轮换用 `scripts/migrate-keys-2048.js`。
+- 双层 RSA 解密每层都要传 `'utf8'`，漏掉会抛 `Error during decryption`。
+- 新增可创建的资源必须在 `plugins/RESOURCE_POST_MAP.js` 登记 `creatable` 白名单，否则 POST 直接 404。
+- `users` 没有总线写入口：注册用 `POST /admin/register`，改资料用 `PUT /user`（改密码必须带 `oldPassword`）。公开 GET 通过 `PUBLIC_VIEW` 只暴露 `nikname avatar signature`。
 
-测试数据：`Postman1`（本地已有）、`Tester01`（回归脚本用，缺失自动注册）。账号密码只在 `.env.local`，不要写进代码或文档。
-
-注册请使用 `POST /admin/register`，修改资料请使用 `PUT /user`。`POST /api/rest/users`、`PUT`/`DELETE /api/rest/users/:id` 已取消，返回 404。改密码必须提供 `oldPassword`。`users` 的公开 GET 通过 `PUBLIC_VIEW` 只暴露 `nikname avatar signature`。
+测试数据：`Postman1`、`Tester01`（回归脚本会用，缺失时自动注册）。账号密码只在 `.env.local`，不要写进代码或文档。
 
 ## 依赖升级计划
 
@@ -187,7 +190,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **已完成**（均已通过回归）：
 - `express` 4.16.4 → 5.3.0：`res.send(status, body)` 全部改为 `res.status(status).send(body)`；`app.set('query parser', 'extended')` 保持 qs 嵌套解析；解析器后统一把 `req.body` 设为 `{}`（Express 5 无请求体时为 `undefined`）。
 - `express-jwt` 6.0.0 → 8.5.1：改用命名导出 `expressjwt`；`isRevoked` 改为 `(req, token)` 签名，返回 `false`（从不拒绝），只挂载 `req.isPass`。
-- `node-rsa` 1.1.1 → 2.0.0：CJS 导出需取 `.default`（`core/util/util.js`）。加密仍用 `pkcs1`，与已存库的密文兼容。
+- `node-rsa` 1.1.1 → 2.0.0：CJS 导出需取 `.default`（`core/util/util.js`）。填充方式后来又从 `pkcs1` 改为 `pkcs1_oaep`（见"已知问题与待办"第 1 条）。
 - `mongoose` 5.11.5 → 8.24.8（driver 6.20.0）：`plugins/db.js` 去掉已废弃的 `useNewUrlParser`、`useUnifiedTopology`；`user.js` 的 `.count()` 改为 `countDocuments()`。
 - `multer` 1.4.2 → 2.5.0：修复 CVE-2022-24434（1.4.4 仍受影响）。上传 API 与 `LIMIT_FILE_SIZE` 错误码保持不变。
 - `inflection` 1.12.0 → 3.0.2：`classify` 对全部资源名的输出前后一致。

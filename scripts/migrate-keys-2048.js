@@ -25,9 +25,13 @@ const MONGO_URI = 'mongodb://127.0.0.1:27017/db_blog'
 const PUB = path.join(ROOT, 'auth/public.cer')
 const PRI = path.join(ROOT, 'auth/private.cer')
 
+// 当前填充方式。2026-11 已从 pkcs1 切换到 OAEP，存量密文也是 OAEP。
+// 若数据库仍是 pkcs1 旧密文，先用 migrate-oaep.js 迁移，或把这里改回 'pkcs1'。
+const SCHEME = 'pkcs1_oaep'
+
 const rsa = (key) => {
   const k = new NodeRSA(key)
-  k.setOptions({ encryptionScheme: 'pkcs1' })
+  k.setOptions({ encryptionScheme: SCHEME })
   return k
 }
 
