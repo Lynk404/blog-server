@@ -3,11 +3,12 @@
 > 基础路径：`/api/rest/articles`
 
 ## 字段说明 (Body)
-| 字段 | 类型 | 必填 | 说明 
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
 | `title` | String | 是 | 文章标题 |
 | `cover` | String | 否 | 封面图 URL |
 | `content` | String | 是 | 正文内容（富文本） |
-| `column` | String | **是** | 所属专栏 ID（后台会联动更新专栏的 `aids`） |
+| `column` | String | 是 | 所属专栏 ID（后台会联动更新专栏的 `aids`） |
 | `author` | String | 否 | **禁止前端传值**，后台自动从 Token 注入当前用户 ID |
 
 ## 特殊规则

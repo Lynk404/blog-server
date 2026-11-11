@@ -7,6 +7,7 @@
 
 ## 通用操作
 | 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
 | GET | `/api/rest/:resource` | 否 | 获取列表，支持 `page, size, query, options` 等参数 |
 | GET | `/api/rest/:resource/:id` | 否 | 获取详情 |
 | POST | `/api/rest/:resource` | 是 | 创建资源 |
@@ -22,6 +23,7 @@
 URL 中的 `:resource` 采用**复数形式**，框架底层会通过 `inflection` 库自动转换为**单数首字母大写**的 Model 名称，并加载对应的 `models/*.js` 文件。
 
 | URL 示例 | 映射 Model | 说明 |
+| --- | --- | --- |
 | `/api/rest/articles` | `Article` | 文章 |
 | `/api/rest/columns` | `Column` | 专栏/分类 |
 | `/api/rest/comments` | `Comment` | 评论 |
@@ -36,6 +38,7 @@ URL 中的 `:resource` 采用**复数形式**，框架底层会通过 `inflectio
 每个资源都自动拥有以下 5 个标准 RESTful 端点：
 
 | 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
 | `GET` | `/api/rest/:resource` | 否 | 获取资源列表（支持分页/搜索/筛选） |
 | `GET` | `/api/rest/:resource/:id` | 否 | 获取单条资源详情 |
 | `POST` | `/api/rest/:resource` | 是 | 创建资源 |
@@ -52,6 +55,7 @@ URL 中的 `:resource` 采用**复数形式**，框架底层会通过 `inflectio
 总线支持高度灵活的 Query 参数拼装，底层配合 `qs` 和 `pagination` 工具类实现。
 
 | 参数 | 默认值 | 类型 | 说明 |
+| --- | --- | --- | --- |
 | `page` | `1` | Number | 当前页码 |
 | `size` | `100` | Number | 每页条目数 |
 | `dis` | `8` | Number | 分页器显示的页码数量 |

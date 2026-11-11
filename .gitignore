@@ -32,4 +32,5 @@ auth/
 # AI coding
 .agent
 .claude
+.claude/
 CLAUDE.md
