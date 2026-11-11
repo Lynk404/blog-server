@@ -62,7 +62,7 @@ router.post('/:classify', upload.any(), async (req, res, next) => {
       }
     }
 
-    res.send(200, resultData)
+    res.status(200).send(resultData)
 
 
   } catch (err) {

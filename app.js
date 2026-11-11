@@ -8,10 +8,12 @@ const mongoose = require('./plugins/db') // 连接db
 const assert = require('http-assert')
 const User = require('./models/User')
 const { maxFileSize } = require('./config')
-const expressJwt = require('express-jwt')
-const { getPublicKeySync } = require('./core/rsaControl')
+const { expressjwt: expressJwt } = require('express-jwt')
+const { getJwtPublicKeySync } = require('./core/rsaControl')
 
 const app = express();
+// Express 5 默认使用 Node 原生 querystring，这里保持 qs 的嵌套解析（如 query[q]=...）
+app.set('query parser', 'extended');
 
 app.use(cors({
   "origin": true, //true 设置为 req.origin.url
@@ -26,6 +28,11 @@ app.use(cors({
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+// Express 5 在无请求体时 req.body 为 undefined，Express 4 为 {}；统一为 {} 以保持原行为
+app.use((req, res, next) => {
+  req.body = req.body || {}
+  next()
+});
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'uploads')));
@@ -48,21 +55,19 @@ app.use((req, res, next) => {
 })
 
 app.use(expressJwt({
-  secret: getPublicKeySync(), //解密秘钥 
-  algorithms: ["RS256"], //6.0.0以上版本必须设置解密算法 
-  isRevoked: async (req, payload, next) => {
-    let { _id } = payload
+  secret: getJwtPublicKeySync(), //JWT 验签公钥（JWT 专用，与密码密钥分离）
+  algorithms: ["RS256"], //6.0.0以上版本必须设置解密算法
+  // v8 语义：返回 true 才会拒绝请求。这里从不拒绝，只挂载 isPass，由各处理器自行判断
+  // 数据库查询出错时直接抛出，交给全局错误处理器（500）
+  isRevoked: async (req, token) => {
+    let { _id } = token.payload
     req._id = _id
     req.isPass = true
-    try {
-      let result = await User.findById(_id)
-      if (!result) {
-        req.isPass = false
-      }
-      next()
-    } catch (err) {
-      next(err)
+    let result = await User.findById(_id)
+    if (!result) {
+      req.isPass = false
     }
+    return false
   }
 }).unless({
   path: [
@@ -97,11 +102,11 @@ app.use('/user', userRoute)
 
 app.use('/index', (req, res, next) => {
   if (req.isPass) {
-    res.send(200, {
+    res.status(200).send({
       message: 'ok'
     })
   } else {
-    res.send(401, {
+    res.status(401).send({
       message: '请先登录'
     })
   }

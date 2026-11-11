@@ -1,7 +1,8 @@
 const fs = require('fs');
 const qs = require('qs')
 const path = require('path');
-const NodeRSA = require('node-rsa');
+// node-rsa v2 的 CJS 导出为对象，实际类在 .default 上
+const NodeRSA = require('node-rsa').default;
 
 const { priKeyPath, pubKeyPath } = require('../../config');
 // const { compile } = require('morgan');

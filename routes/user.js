@@ -38,7 +38,7 @@ router.put('/', async (req, res, next) => {
     }
 
     await User.findByIdAndUpdate(userId, updateData, { runValidators: true, new: true })
-    res.send(200, {
+    res.status(200).send({
       message: '修改成功'
     })
   } catch (err) {
@@ -52,13 +52,13 @@ router.get('/', async (req, res, next) => {
   console.log(_id)
   try {
     let userResult = await User.findById(_id)
-    let articleCount = await Article.find({ author: _id }).count()
-    let columnCount = await Column.find({ uid: _id }).count()
+    let articleCount = await Article.countDocuments({ author: _id })
+    let columnCount = await Column.countDocuments({ uid: _id })
     userResult = userResult.toJSON()
     userResult.articleCount = articleCount
     userResult.columnCount = columnCount
     console.log(userResult)
-    res.send(200, {
+    res.status(200).send({
       message: '查询成功',
       data: userResult
     })
@@ -84,7 +84,7 @@ router.delete('/', async (req, res, next) => {
     }
     assert(isMatch, 422, '密码错误')
     await deleteAccount(req._id)
-    res.send(200, {
+    res.status(200).send({
       message: '注销成功'
     })
   } catch (err) {

@@ -40,7 +40,7 @@ router.get('/', async (req, res, next) => {
       populate = POPULATE_MAP[modelName]
     }
     let result = await pagination({ model: Article, query, options, populate, size, page, dis })
-    res.send(200, {
+    res.status(200).send({
       message: "ok",
       data: result
     })

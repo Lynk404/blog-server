@@ -7,7 +7,7 @@ const assert = require('http-assert');
 /*GET /keys */
 router.get('/', async function (req, res, next) {
   let result = await Key.findOne()
-  res.send(200, {
+  res.status(200).send({
     message: 'ok',
     data: {
       pubKey: result.content

@@ -19,9 +19,9 @@
 
 | 分类 | 技术 / 库 |
 | --- | --- |
-| 运行时 | Node.js |
-| Web 框架 | Express 4 |
-| 数据库 | MongoDB + Mongoose 5 |
+| 运行时 | Node.js ≥ 20 |
+| Web 框架 | Express 5 |
+| 数据库 | MongoDB（服务端 ≥ 4.2）+ Mongoose 8 |
 | 鉴权 | JSON Web Token（`jsonwebtoken`、`express-jwt`）、RSA 非对称加密（`node-rsa`） |
 | 请求处理 | `cors`、`cookie-parser`、`qs` |
 | 日志 | `morgan`、`debug` |
@@ -61,7 +61,8 @@ blog-server/
 | --- | --- |
 | `host` / `port` | 服务监听地址与端口（默认 `127.0.0.1:3000`） |
 | `keyPath` | RSA 密钥目录 |
-| `pubKeyPath` / `priKeyPath` | 公钥 / 私钥文件路径 |
+| `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（`auth/public.cer`、`auth/private.cer`） |
+| `jwtPubKeyPath` / `jwtPriKeyPath` | JWT 验签公钥 / 签发私钥（`auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位，需单独生成） |
 | `uploadPath` / `uploadURL` | 上传文件存储目录与对外访问前缀 |
 | `maxFileSize` | 单文件最大字节数（默认 102400，约 100KB） |
 

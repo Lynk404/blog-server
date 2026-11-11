@@ -12,7 +12,7 @@ router.post('/:id', async (req, res, next) => {
       }
     })
     let likes = ++result.like_num
-    res.send(200, {
+    res.status(200).send({
       message: '点赞成功',
       data: {
         likes

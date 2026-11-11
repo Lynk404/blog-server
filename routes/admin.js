@@ -37,7 +37,7 @@ router.post('/:classify', async (req, res, next) => {
 
     //生成token
     let token = await sendToken(user)
-    res.send(200, {
+    res.status(200).send({
       message: '登录成功',
       data: {
         userId: user._id,

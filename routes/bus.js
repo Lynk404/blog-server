@@ -45,7 +45,7 @@ router.post('/', async (req, res,next) => {
       assert(refId, 422, `${_refId} 必填`)
       await _model[queryAct](refId,options(_id))
     }
-    res.send(200, {
+    res.status(200).send({
       message: '提交成功',
       data: {
         id: result._id
@@ -84,7 +84,7 @@ router.put('/:id', async (req, res, next) => {
     updateData = Object.fromEntries(updateData)
     updateData['date'] = new Date().toISOString()
     await req.Model.findByIdAndUpdate(id, updateData)
-    res.send(200, {
+    res.status(200).send({
         message: '修改成功'
     })
   }catch(err){
@@ -151,7 +151,7 @@ router.get('/', async (req, res,next) => {
       query = Object.fromEntries(Object.entries(query).filter(([key]) => queryKeys.includes(key)))
     }
     let result = await pagination({model:req.Model,query,options,populate, size, page, dis})
-    res.send(200,{
+    res.status(200).send({
       message:"ok",
       data:result
     })
@@ -175,7 +175,7 @@ router.get('/:id', async (req, res, next) => {
     }
     let result = await query.exec()
     assert(result, 404, '资源不存在')
-    res.send(200, {
+    res.status(200).send({
         message: '查询成功',
         data: result
     })
