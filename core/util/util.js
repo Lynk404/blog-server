@@ -10,23 +10,14 @@ const { priKeyPath, pubKeyPath } = require('../../config');
 const mongoose = require('mongoose');
 
 
-function generateKeys() {
-  // 2048 位：512 位已可被分解，不足以保护密码
-  const newkey = new NodeRSA({ b: 2048 });
-  newkey.setOptions({ encryptionScheme: 'pkcs1' })
-  let public_key = newkey.exportKey('pkcs8-public')//公钥,
-  let private_key = newkey.exportKey('pkcs8-private') //私钥
-
-  fs.writeFileSync(priKeyPath, private_key);
-  fs.writeFileSync(pubKeyPath, public_key);
-
-
-}
+// OAEP 填充：避免 pkcs1（PKCS#1 v1.5）的 Bleichenbacher 类填充预言机风险。
+// node-rsa 的 pkcs1_oaep 默认摘要为 SHA-1，前端 WebCrypto 必须使用 RSA-OAEP + SHA-1 保持一致。
+const ENCRYPTION_SCHEME = 'pkcs1_oaep'
 
 function encrypt(plain) {
   let public_key = fs.readFileSync(pubKeyPath, 'utf8');
   const nodersa = new NodeRSA(public_key);
-  nodersa.setOptions({ encryptionScheme: 'pkcs1' });
+  nodersa.setOptions({ encryptionScheme: ENCRYPTION_SCHEME });
   const encrypted = nodersa.encrypt(plain, 'base64');
   return encrypted;
 }
@@ -34,7 +25,7 @@ function encrypt(plain) {
 function decrypt(cipher) {
   let private_key = fs.readFileSync(priKeyPath, 'utf8'); //私钥
   let prikey = new NodeRSA(private_key);
-  prikey.setOptions({ encryptionScheme: 'pkcs1' });
+  prikey.setOptions({ encryptionScheme: ENCRYPTION_SCHEME });
   return prikey.decrypt(cipher, 'utf8')
 }
 
@@ -111,7 +102,6 @@ function escapeRegExp(str) {
 }
 
 module.exports = {
-  generateKeys,
   encrypt,
   decrypt,
   pagination,

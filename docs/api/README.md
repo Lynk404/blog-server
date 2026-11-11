@@ -43,15 +43,42 @@
 
 ### 安全说明（密码传输）
 
-- 密码在客户端用 RSA 公钥加密后随请求体传输。密钥为 **2048 位**，加密填充为 **PKCS#1 v1.5**（`encryptionScheme: 'pkcs1'`）。
+- 密码在客户端用 RSA 公钥加密后随请求体传输。密钥为 **2048 位**，加密填充为 **OAEP**（`encryptionScheme: 'pkcs1_oaep'`，摘要 **SHA-1**）。
 - 公钥由 `GET /keys` 提供，与服务端 `auth/public.cer` 一致，客户端应从该接口获取，不要写死在前端。
-- **已知风险**：PKCS#1 v1.5 加密存在 Bleichenbacher 类填充预言机风险。推荐改为 OAEP（`pkcs1_oaep`）。
-- **前端配合事项（改造 OAEP 时）**：
-  1. 前端加密改为 OAEP（如 `node-rsa` 用 `setOptions({ encryptionScheme: 'pkcs1_oaep' })`，浏览器 `WebCrypto` 用 `RSA-OAEP`，注意摘要算法需与服务端一致，默认 `SHA-1`，`node-rsa` 的 `pkcs1_oaep` 也是 `SHA-1`）。
-  2. 服务端把 `core/util/util.js` 中 `encrypt`/`decrypt` 与 `generateKeys()` 的 `encryptionScheme` 一起改为 `pkcs1_oaep`。
-  3. 数据库中已存的密码密文需要迁移：用旧密钥旧填充解出明文，再用新填充重新加密写回。可参考 `scripts/migrate-keys-2048.js` 的写法（该脚本处理的是密钥位数升级，迁移方法相同）。
-  4. 三项必须同时上线，否则登录会全部失败。
-- 密钥位数已于 **2026-11 从 512 位升级到 2048 位**，存量用户密码已一并重加密，客户端无需改动。若前端曾把公钥写死，需改成从 `GET /keys` 获取。
+- **2026-11 变更：填充从 PKCS#1 v1.5 改为 OAEP。** 旧填充存在 Bleichenbacher 类填充预言机风险，已废弃。
+
+#### ⚠️ 前端必须同步改造（否则所有登录失败）
+
+服务端已切换为 OAEP，**旧客户端用 pkcs1 加密的密码将无法解密**。前端需改为 OAEP，摘要算法必须是 **SHA-1**（与 `node-rsa` 的 `pkcs1_oaep` 默认值一致）。
+
+```js
+// 浏览器 WebCrypto
+const key = await crypto.subtle.importKey(
+  'spki',
+  pemToArrayBuffer(pubKeyPem),
+  { name: 'RSA-OAEP', hash: 'SHA-1' },   // ← hash 必须是 SHA-1
+  false,
+  ['encrypt']
+)
+const cipher = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key, new TextEncoder().encode(password))
+```
+
+```js
+// Node.js / 使用 node-rsa 的环境
+const rsa = new NodeRSA(pubKeyPem)
+rsa.setOptions({ encryptionScheme: 'pkcs1_oaep' })   // ← 原来是 'pkcs1'
+const cipher = rsa.encrypt(password, 'base64')
+```
+
+**注意**：`hash: 'SHA-256'` 会解密失败，服务端只接受 SHA-1。
+
+#### 服务端与数据迁移记录
+
+- 服务端：`core/util/util.js` 的 `encrypt` / `decrypt` 统一使用常量 `ENCRYPTION_SCHEME = 'pkcs1_oaep'`。
+- 存量数据：2026-11 已用 `scripts/migrate-oaep.js` 完成重加密（旧填充解两层 → 新填充双层加密 → 写回），迁移前备份在系统临时目录。
+- 密钥本身未更换，位数仍是 2048 位。
+
+> 部署到新环境时，若数据库是旧填充的备份，需先跑 `node scripts/migrate-oaep.js`，否则存量用户无法登录。
 
 ### 免鉴权白名单
 

@@ -71,26 +71,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 命令
 
 - 安装依赖：`npm install`
-- 密钥生成（JWT 专用 2048 位，仅在文件不存在时生成，`wx` 标志防止覆盖）：
-  ```
-  node -e "const fs=require('fs'),c=require('crypto');const {publicKey:u,privateKey:r}=c.generateKeyPairSync('rsa',{modulusLength:2048,publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem'}});fs.writeFileSync('auth/jwt-private.pem',r,{flag:'wx'});fs.writeFileSync('auth/jwt-public.pem',u,{flag:'wx'})"
-  ```
-  生成后 JWT 旧 token 全部失效。密码密钥（`auth/*.cer`）不能用此命令覆盖，见"已知问题"。
 - 开发服务器：`npm start`（运行 `nodemon ./bin/www`）。默认地址：`http://127.0.0.1:3000`。设置 `PORT` 环境变量可覆盖端口。
 - `package.json` 的 dependencies 中没有列出 `nodemon`。如果 `npm start` 报 “nodemon not found”，请全局安装它，或直接运行 `node ./bin/www`。
-- 未配置测试运行器、linter，也没有 `npm test`。端到端回归脚本（临时保留，未纳入 git）：
+- 端到端回归（未配置测试运行器/linter，也没有 `npm test`）：
   - 全部：`node scripts/regress/run.js`（约 3 秒，30 项，不符合预期时退出码非 0）
   - 跳过上传：`node scripts/regress/run.js --no-upload`（不写任何文件）
   - 脚本自启动临时服务、自建测试数据并清理、结束时只关闭自己的子进程。账号读取 `.env.local`，需要本地 MongoDB 与 `Postman1` 账号存在。
   - 覆盖：文章权限、搜索/点赞白名单、注销级联、JWT 鉴权、上传（沙箱）、数据库一致性审计。
   - 新增或修改接口后应运行；失败时输出服务日志末尾。
 - 启动前必须准备好：
-  - MongoDB，地址 `mongodb://127.0.0.1:27017/db_blog`。该地址硬编码在 `plugins/db.js` 中，而不是 `config.js`。
+  - MongoDB，地址 `mongodb://127.0.0.1:27017/db_blog`。该地址硬编码在 `plugins/db.js`，不在 `config.js`。
   - 两套独立的 RSA 密钥，`auth/` 已被 gitignore，需要手动准备：
-    - 密码加密密钥：`auth/public.cer`、`auth/private.cer`（512 位，`generateKeys()` 生成）。
-    - JWT 签名密钥：`auth/jwt-public.pem`、`auth/jwt-private.pem`（2048 位）。缺失时 `app.js` 启动即崩溃；生成命令见下方"密钥生成"。
-  - `core/util/util.js` 中的 `generateKeys()` 会**覆盖**密码密钥。它只被 `rsaControl.js` 中的 `getPublicKey()` / `getPrivateKey()` 的缺失回退路径调用，JWT 密钥的读取不走这条路径。
-- `Key` 集合需要手动写入数据。`GET /keys` 返回第一条 `Key` 文档的 `content`，而代码中没有任何地方写入 `Key` 文档。
+    - 密码加密密钥 `auth/public.cer`、`auth/private.cer`，**2048 位**。
+    - JWT 签名密钥 `auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位。缺失时 `app.js` 启动即崩溃。
+    - 两套密钥都**只读**：文件缺失时 `core/rsaControl.js` 直接抛错，不会自动生成或覆盖。
+- JWT 密钥生成（仅在文件不存在时生成，`wx` 标志防止覆盖）：
+  ```
+  node -e "const fs=require('fs'),c=require('crypto');const {publicKey:u,privateKey:r}=c.generateKeyPairSync('rsa',{modulusLength:2048,publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem'}});fs.writeFileSync('auth/jwt-private.pem',r,{flag:'wx'});fs.writeFileSync('auth/jwt-public.pem',u,{flag:'wx'})"
+  ```
+  生成后 JWT 旧 token 全部失效。
+- 密码密钥生成（**新环境才需要**，会覆盖已有密钥并导致存量密码全部无法校验）：
+  ```
+  node -e "const fs=require('fs'),c=require('crypto');const {publicKey:u,privateKey:r}=c.generateKeyPairSync('rsa',{modulusLength:2048,publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem'}});fs.writeFileSync('auth/private.cer',r,{flag:'wx'});fs.writeFileSync('auth/public.cer',u,{flag:'wx'})"
+  ```
+  生成后必须跑 `node scripts/sync-key.js` 同步 `Key` 集合，否则前端拿到的公钥不匹配。
+- 密码密钥轮换用 `node scripts/migrate-keys-2048.js`（支持 `--dry` 预演）：备份 → 生成新密钥 → 重加密存量用户 → 同步 `Key` 集合。**换密钥必须同时更新 `Key` 集合**，否则前端拿到的公钥与服务端私钥不匹配。
+- 填充方式迁移用 `node scripts/migrate-oaep.js`（支持 `--dry` 预演）：旧填充解两层 → 新填充双层加密 → 写回。切换到旧填充的数据库备份后必须跑一次，否则存量用户无法登录。
+- 公钥同步：`node scripts/sync-key.js`，把 `auth/public.cer` 写入 `Key` 集合（清空后插入一条）。`GET /keys` 返回第一条 `Key` 文档的 `content`，代码中没有任何地方写入它，集合为空时返回 404。换密钥后忘了跑会导致前端公钥不匹配、所有登录失败。
 
 ## 架构
 
@@ -99,7 +106,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **鉴权。**
 - `routes/admin.js` 处理 `POST /admin/login` 和 `POST /admin/register`。`core/sendToken.js` 用 `auth/jwt-private.pem` 签发 RS256 JWT，`app.js` 的 `express-jwt` 用 `auth/jwt-public.pem` 验签（`core/rsaControl.js` 的 `getJwtPublicKeySync` / `getJwtPrivateKey`）。载荷为 `{ username, _id }`，有效期 3 天。JWT 密钥与密码密钥分离后，此前的 token 全部失效。
 - `express-jwt` 的 `isRevoked` 钩子会在每个已鉴权请求上执行 `User.findById`。它设置 `req._id` 和 `req.isPass`，但从不拒绝请求。每个处理器必须自己检查 `req.isPass`。
-- 密码由客户端用公钥做 RSA 加密（512 位，pkcs1）。`User.password` 的 setter 先用 `decrypt()` 校验传入的密文，然后存储 `encrypt(密文)`。登录时比较 `decrypt(客户端密文)` 与 `decrypt(decrypt(存储值))`。
+- 密码由客户端用公钥做 RSA 加密（2048 位，**OAEP 填充，SHA-1**）。`User.password` 的 setter 先用 `decrypt()` 校验传入的密文，然后存储 `encrypt(密文)`。登录时比较 `decrypt(客户端密文)` 与 `decrypt(decrypt(存储值))`。**两层解密都要传 `'utf8'`**，第一层漏掉会抛 `Error during decryption`。
+- 填充方式由常量 `ENCRYPTION_SCHEME = 'pkcs1_oaep'`（`core/util/util.js`）统一定义，改填充只改这一处。**前端必须用 `RSA-OAEP` + `SHA-1`**，`SHA-256` 会导致解密失败。
 
 **通用资源 API（`/api/rest/:resource`）。** 这是应用的核心。
 1. `middleware/resource.js` 通过 `inflection.classify` 把 URL 段转换为模型名（`articles` → `Article`），然后 require `models/<Name>.js`。文件不存在时返回 404。
@@ -123,22 +131,54 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **配置。** `config.js` 设置监听地址、端口、密钥路径、上传路径和 URL，以及最大上传大小（100 KB）。`uploadURL` 硬编码为 `http://127.0.0.1:3000/`。
 
-## 已知问题
+## 已知问题与待办
 
-按影响程度排序。以下问题均通过阅读代码确认，目前尚未修复；修改相邻代码时请留意。
+按影响程度排序。这里同时是问题清单和待办清单，修掉一项就删一条。
 
-### 高 —— 安全、数据正确性
+### 高 —— 安全
 
-1. **密码填充方式仍是 PKCS#1 v1.5。** `encryptionScheme: 'pkcs1'` 存在 Bleichenbacher 类填充预言机风险。**密钥位数已于 2026-11 从 512 位升到 2048 位**（存量密文已重加密），但填充未改。改 OAEP 需**前后端同时上线**：前端加密方式、服务端 `encryptionScheme`、已存密文迁移，缺一不可。用户已同意改造，前端正在配合，迁移步骤写在 `docs/api/README.md` 的"安全说明"里，参考脚本 `scripts/migrate-keys-2048.js`。
+**1. 前端必须改 OAEP，否则登录全部失败**
 
-### 中 —— 功能缺陷
+服务端已于 2026-11 从 PKCS#1 v1.5 切换到 OAEP（`ENCRYPTION_SCHEME = 'pkcs1_oaep'`，摘要 SHA-1），存量密文已用 `scripts/migrate-oaep.js` 重加密。
 
-2. **`/keys` 依赖手工维护的 `Key` 集合。** 代码中没有任何地方写入 `Key` 文档，`GET /keys` 完全依赖它。空集合现在返回 404（不再挂起），但部署后必须手工插入。维护方法见 `docs/api/other/other.md`。这是设计如此，不是待修复项，但容易忘。
+**前端尚未同步改造。** 在它发版之前，旧客户端提交的 pkcs1 密文会被服务端拒绝，登录和注册全部失败。前端改法（WebCrypto 与 node-rsa 两种写法）已写在 `docs/api/README.md` 的"安全说明（密码传输）"，关键是 `hash: 'SHA-1'`，用 `SHA-256` 同样会失败。
 
-### 低 —— 代码卫生
+> 本地开发用回归脚本验证，脚本已同步改为 OAEP；只有真实前端还停在旧填充。
 
-3. **`package-lock.json` 的 `resolved` 地址指向镜像源**（npmmirror、taobao），在其他网络环境安装可能失败。当前网络环境无法重新生成，暂缓。
-4. **`generateKeys()` 会覆盖密码密钥。** 它现在生成 2048 位密钥，但仍是"发现文件缺失就重新生成"的语义。目前只在显式调用时触发（`rsaControl.js` 的读取路径已不再回退到它），风险已大幅降低，但函数本身的行为仍值得注意。
+### 中 —— 部署
+
+**2. `GET /keys` 依赖手工维护的 `Key` 集合**
+
+代码中没有任何地方写入 `Key` 文档，`GET /keys` 完全依赖它。集合为空时返回 404（不会挂起）。这是现有设计，不是缺陷，但部署和换密钥时**必须**手工同步，否则前端拿到的公钥与服务端私钥不匹配，所有登录失败。维护方法见 `docs/api/other/other.md`。
+
+### 待决定
+
+**MongoDB 是否升级到 ≥ 4.4。** mongoose 9 的驱动要求服务端 ≥ 4.4，本地实例是 4.2.3（wire version 8），实测会被拒绝。当前 mongoose 8 在 4.2 上运行正常，不影响开发；但 4.2 已超出官方支持期，若要部署到非本地环境，建议先升 MongoDB 再考虑 mongoose 9。**当前决定：不升。**
+
+### 暂缓（用户要求，非技术阻塞）
+
+**3. `package-lock.json` 的 `resolved` 指向镜像源**（npmmirror、taobao，共 140 处）。官方源实测可连通，但用户反馈网络不稳定，重写 lockfile 后日常 `npm install` 可能反而变慢或失败。**保持现状。**
+
+**4. `npm audit` 未跑过。** 同理暂缓。
+
+---
+
+## 当前状态（2026-11）
+
+工作区干净，改动已提交。回归 `node scripts/regress/run.js` **30/30 通过**。
+
+修复这些问题时遵循的流程，后续可复用：**先给方案 → 用户确认 → 按批次实施 → 每批跑回归 → 同步 `docs/`**。
+
+关键实现细节（容易踩的坑）：
+
+- **双层 RSA 解密每层都要传 `'utf8'`。** `decrypt(decrypt(stored, 'utf8'), 'utf8')`。第一层漏掉会抛 `Error during decryption`，且报错信息不指向原因。
+- **创建接口走白名单。** `plugins/RESOURCE_POST_MAP.js` 的 `creatable` 决定哪些字段能进来；不在该映射表里的模型，POST 直接 404。新增可创建资源时必须在这里登记。
+- **删除文章会级联删除其下评论**，与注销账号规则一致。回归脚本的数据库审计会检查孤立评论。
+- **两套密钥都是只读的。** `auth/` 被 gitignore，文件缺失时服务启动即失败，不会自动生成。JWT 密钥手写生成命令见"命令"一节；密码密钥轮换用 `scripts/migrate-keys-2048.js`。
+
+测试数据：`Postman1`（本地已有）、`Tester01`（回归脚本用，缺失自动注册）。账号密码只在 `.env.local`，不要写进代码或文档。
+
+注册请使用 `POST /admin/register`，修改资料请使用 `PUT /user`。`POST /api/rest/users`、`PUT`/`DELETE /api/rest/users/:id` 已取消，返回 404。改密码必须提供 `oldPassword`。`users` 的公开 GET 通过 `PUBLIC_VIEW` 只暴露 `nikname avatar signature`。
 
 ## 依赖升级计划
 
@@ -155,41 +195,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 小版本：`cookie-parser` 1.4.7、`cors` 2.8.6、`http-assert` 1.5.0、`qs` 6.17.1。
 - `jsonwebtoken` 8.5.1 → 9.0.3：JWT 改用独立的 2048 位密钥对（`auth/jwt-*.pem`），密码密钥未动。此前签发的 token 全部失效。验证见回归脚本的"JWT 鉴权"用例。
 
-**有意保留，暂不升级**（由你决定）：
-- `mongoose` 8.24.8 保持不动。mongoose 9 的驱动要求 MongoDB 服务端 ≥ 4.4，本地实例为 4.2.3（wire version 8），已实测被拒绝。是否升级 MongoDB 待定：mongoose 8 在 4.2 上可正常运行；但 4.2 已超出官方支持期，若部署到非本地环境，建议先升级 MongoDB 再考虑 mongoose 9。
-
 **运行环境**：Node ≥ 20（express 5、node-rsa 2 的要求）；MongoDB 服务端 ≥ 4.2（mongoose 8 实测通过）。
-
-本次未做 CVE 检查（`npm audit` 在当前镜像源不可用），安全性结论需在网络可用时补查。
-
-## 当前进度与待办（2026-11）
-
-**本轮已修复**（均已通过回归 30/30）：
-- 密钥文件缺失不再静默覆盖：`rsaControl.js` 的两套密钥读取都改为只读，删除回退到 `generateKeys()` 的分支；删除了无人调用的 `getPublicKeySync()` 和 `routes/getPubKey.js` 里的无用 import。
-- 创建接口字段白名单：`plugins/RESOURCE_POST_MAP.js` 新增 `creatable`（Article: `title/cover/content/column`；Column: `name`；Comment: `content/aid`）；不在映射表中的模型拒绝 POST（顺带堵住 `POST /api/rest/keys`）；`/admin/register` 只取 `username/password/email/nikname/avatar`。
-- 删除文章级联删除其下评论，与注销账号的规则统一。
-- `GET /keys` 空集合返回 404，不再挂起。
-- 上传 URL 改为字符串拼接，去掉了 `./` 前缀（原实现产出 `./http://127.0.0.1:3000/...`）。
-- 点赞：`artLikes.js` 文章不存在时返回 404（原来读 `null.like_num` 抛 500）；文档路径改为 `POST /articles/likes/:id`。
-- 清理调试输出：`app.js` 的三处 `'111'/'222'/'333'`、`user.js` 的两处、`bus.js` 的 `'123'`，错误日志改用 `debug`（`blog:app`、`blog:db`）；修掉错误处理器中 `err.message` 为 undefined 时二次抛错的问题；删掉 `require('process')`。
-- 删除死文件 `core/userControl.js`（用户已同意）；清理 `core/sendToken.js` 中未使用的 import。
-- `package.json` 增加 `"engines": { "node": ">=20" }`。
-- **密码密钥 512 → 2048 位**：`scripts/migrate-keys-2048.js`（支持 `--dry`）完成备份、生成新密钥、重加密两个存量用户、更新 `Key` 集合公钥。`generateKeys()` 也已改为 2048 位。迁移前备份在系统临时目录 `blog-key-migrate-*`。
-
-**未提交的改动**（提交前需展示变更摘要，用户未要求提交）：
-- 代码：`app.js`、`config.js`、`plugins/db.js`、`plugins/RESOURCE_POST_MAP.js`、`core/rsaControl.js`、`core/sendToken.js`、`core/util/util.js`、`routes/*.js`、`package.json`、`package-lock.json`；已删除 `core/userControl.js`。
-- 功能：`DELETE /user` 注销级联、`PUT /user` 旧密码校验、`users` 总线写入口关闭、`PUBLIC_VIEW` 公开字段收紧、搜索正则转义。
-- 文档：`README.md`、`docs/api/**`、`docs/db/README.md`。
-- 未纳入 git：`CLAUDE.md`（被 `.gitignore` 忽略）、`scripts/`（新目录）、`.env.local`（已被忽略）、`auth/jwt-*.pem`（已被忽略）。
-
-**待办 / 待用户决定**：
-- **OAEP 改造**：用户已确认前端会配合，但需要与前端约定同一时间上线。步骤见 `docs/api/README.md` 的"安全说明（密码传输）"。
-- MongoDB 是否升级到 ≥ 4.4（升级后才能考虑 mongoose 9）。不影响当前运行。
-- `package-lock.json` 的镜像源地址：当前网络不允许重新生成，暂缓。
-
-**临时资产**：
-- `scripts/regress/`：回归脚本，30 项，约 3 秒。
-- `scripts/migrate-keys-2048.js`：一次性密钥迁移脚本，保留作 OAEP 迁移的参考实现。
-- 数据库测试数据：`Postman1`（本地已有）、`Tester01`（回归脚本会用，缺失时自动注册）。账号密码只在 `.env.local`，不要写进代码或文档。
-
-注册请使用 `POST /admin/register`，修改资料请使用 `PUT /user`。`POST /api/rest/users`、`PUT`/`DELETE /api/rest/users/:id` 已取消，返回 404。改密码必须提供 `oldPassword`。`users` 的公开 GET 通过 `bus.js` 中的 `PUBLIC_VIEW` 只暴露 `nikname avatar signature`。

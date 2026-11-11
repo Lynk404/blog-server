@@ -32,7 +32,8 @@ const USER2 = { u: env.TEST_USER_2_USERNAME, p: env.TEST_USER_2_PASSWORD } // Te
 const MONGO_URI = 'mongodb://127.0.0.1:27017/db_blog'
 
 const pub = new NodeRSA(fs.readFileSync(path.join(ROOT, 'auth/public.cer'), 'utf8'))
-pub.setOptions({ encryptionScheme: 'pkcs1' })
+// 与 core/util/util.js 的 ENCRYPTION_SCHEME 保持一致（OAEP，SHA-1）
+pub.setOptions({ encryptionScheme: 'pkcs1_oaep' })
 const enc = s => pub.encrypt(s, 'base64')
 
 // ---------- 结果记录 ----------
