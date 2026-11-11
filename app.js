@@ -71,8 +71,8 @@ app.use(expressJwt({
     { url: '/admin/login' },
     { url: '/admin/register' },
     { url: '/keys' },
-    { url: 'articles/search' },
-    { url: 'articles/likes' },
+    { url: /^\/articles\/search$/, methods: ['GET'] },
+    { url: /^\/articles\/likes\/[^/]+$/, methods: ['POST'] },
   ]
 }))
 

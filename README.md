@@ -161,6 +161,3 @@ npm start
 ---
 
 ## 测试_id（现本地数据库已有可测试）
-columns 5fdb555c0b8ae033f874e728
-users 5fd8bc3eaac2672638f9d8dc
-articles 5fdca8c6b5c4b9066085fcec
