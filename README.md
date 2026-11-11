@@ -29,7 +29,6 @@
 | 错误处理 | `http-assert`、`http-errors` |
 | 命名转换 | `inflection`（复数 → 单数 Pascal 命名，用于动态加载 Model） |
 | 校验模块 | `validate`['账号格式','密码格式','长度','必填','返回语'] |
-| 客户端示例依赖 | `jquery`、`axios` |
 | 开发工具 | `nodemon`（`npm start` 热更新） |
 
 ---

@@ -112,6 +112,7 @@
 - 访问 **Article** 详情时 `hit_num + 1`。
 - 删除 **Comment** 时从 `Article.comments` `$pull` 该 ID，并 `comment_num - 1`。
 - 删除 **Article** 时从 `Column.aids` `$pull` 该 ID。
+- 注销 **User**（`DELETE /user`）时的级联删除，规则见 [其他接口 - 注销账号](../api/other/other.md)：删除其专栏及专栏中的文章、其作为作者的文章、待删文章下的所有评论、其本人发表的评论，并修正保留文章的 `comments` 与 `comment_num`。
 - 更新资源时自动刷新 `date` 字段。
 
 ---

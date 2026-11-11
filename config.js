@@ -6,7 +6,6 @@ module.exports = {
   keyPath: path.join(process.cwd(), '/auth'),
   pubKeyPath: path.join(process.cwd(), '/auth/public.cer'),
   priKeyPath: path.join(process.cwd(), '/auth/private.cer'),
-  userPath: path.join(process.cwd(), '/user/user.json'),
   uploadPath: path.join(process.cwd(), '/uploads'),
   uploadURL: 'http://127.0.0.1:3000/',
   maxFileSize: 102400
