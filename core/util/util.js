@@ -11,7 +11,8 @@ const mongoose = require('mongoose');
 
 
 function generateKeys() {
-  const newkey = new NodeRSA({ b: 512 });
+  // 2048 位：512 位已可被分解，不足以保护密码
+  const newkey = new NodeRSA({ b: 2048 });
   newkey.setOptions({ encryptionScheme: 'pkcs1' })
   let public_key = newkey.exportKey('pkcs8-public')//公钥,
   let private_key = newkey.exportKey('pkcs8-private') //私钥

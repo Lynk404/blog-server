@@ -111,9 +111,10 @@
 - 创建 **Article** 时同步向 `Column.aids` push ID。
 - 访问 **Article** 详情时 `hit_num + 1`。
 - 删除 **Comment** 时从 `Article.comments` `$pull` 该 ID，并 `comment_num - 1`。
-- 删除 **Article** 时从 `Column.aids` `$pull` 该 ID。
+- 删除 **Article** 时先删除该文章下的全部 `Comment`，再从 `Column.aids` `$pull` 该 ID，与注销账号的级联规则保持一致。
 - 注销 **User**（`DELETE /user`）时的级联删除，规则见 [其他接口 - 注销账号](../api/other/other.md)：删除其专栏及专栏中的文章、其作为作者的文章、待删文章下的所有评论、其本人发表的评论，并修正保留文章的 `comments` 与 `comment_num`。
 - 更新资源时自动刷新 `date` 字段。
+- 创建资源时只接受白名单字段（`plugins/RESOURCE_POST_MAP.js` 的 `creatable`）：Article 为 `title/cover/content/column`，Column 为 `name`，Comment 为 `content/aid`。计数器与引用数组由服务端维护，客户端传入会被忽略。
 
 ---
 
@@ -131,12 +132,13 @@
    - 前端发送明文密码前需使用 RSA 公钥加密。
    - 后端 `User` 模型中的 `set` 拦截器会使用私钥解密验证格式，再次加密后存库。**切勿在日志中打印明文密码**。
    - 存库的是"客户端密文再加密一次"的双层密文，使用 PKCS#1 v1.5（`pkcs1`）。该填充方式存在已知风险，改造需前后端与已存数据同时迁移，详见 [接口总览 - 安全说明](../api/README.md#安全说明密码传输)。
+   - 密码加密密钥为 **2048 位**（2026-11 从 512 位升级，存量密文已由 `scripts/migrate-keys-2048.js` 重加密）。
    - 密码加密密钥（`auth/*.cer`）与 JWT 签名密钥（`auth/jwt-*.pem`）是两套独立密钥，不要混用。
 
 2. **数据一致性维护**
    - 由于计数器和双向关联的存在，在编写删除或更新接口时：
      - 新增/删除评论时，需同步更新 `Article.comment_num` 字段（已实现）。
-     - 删除文章时，需使用 `$pull` 更新 `Column.aids` 数组（已实现）。相关 `Comment` 的级联删除**尚未实现**，目前会留下孤立评论。
+     - 删除文章时需同步删除其下评论并使用 `$pull` 更新 `Column.aids`（已实现）。
 
 3. **内容编码处理**
    - `Article.content` 带有 `decodeURIComponent` 处理，前端富文本提交时务必先调用 `encodeURIComponent`。

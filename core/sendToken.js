@@ -1,8 +1,3 @@
-const { decrypt, encrypt, generateKeys } = require('../core/util/util')
-const fs = require('fs').promises
-const fsSync = require('fs')
-const { pubKeyPath, priKeyPath } = require('../config')
-const { getUserStatusMsg } = require('../core/statusControl')
 const { getJwtPrivateKey } = require('../core/rsaControl')
 const jwt = require('jsonwebtoken') //token生成包  JWT
 

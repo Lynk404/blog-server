@@ -125,21 +125,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 已知问题
 
-以下问题均通过阅读代码确认，目前尚未修复。修改相邻代码时请留意。
-- 删除文章（`DELETE /api/rest/articles/:id`）时不会级联删除其下的评论，会留下孤立的 `Comment`。注销账号的流程已经会级联删除，两者规则不一致，待统一。
-- 请求路径中仍有许多 `console.log` 调试输出。
-- 上传接口返回的 URL 带有 `./` 前缀（`routes/upload.js` 用 `path.join` 拼接 URL，在 Windows 路径分隔符下出错），与 multer 版本无关，需改为字符串拼接。
-- 密码加密使用 `encryptionScheme: 'pkcs1'`（PKCS#1 v1.5），存在 Bleichenbacher 类填充预言机风险。推荐改为 OAEP，但**需前后端同时改造**：前端加密方式、服务端 `encryptionScheme`、数据库中已存的双层密文都要迁移。当前不改，已在 `docs/api/README.md` 的"安全说明"中写明。
-- 密码加密密钥仍为 **512 位**（`generateKeys()` 写死）。JWT 已改用 2048 位独立密钥；密码密钥的强度提升同样需要重新生成并迁移已存密码，未处理。
-- `getPrivateKey()` / `getPublicKey()` 在文件缺失时调用 `generateKeys()`，会悄悄覆盖密码密钥。当前无启动路径触发它，但若密钥文件被删，下一次调用会换掉密钥并导致已存密码全部无法校验。
-- `getPublicKeySync()`（`core/rsaControl.js`）已无调用方（`app.js` 已切到 JWT 公钥），保留待清理。
-- `package-lock.json` 中的 `resolved` 地址指向镜像源（npmmirror、taobao），在其他网络环境安装可能失败。
-- `package.json` 未声明 `engines`，但当前依赖要求 Node ≥ 20。
-- `core/userControl.js` 是旧版 JSON 文件用户存储，没有任何地方引用，且依赖已删除的 `config.userPath`。待确认是否删除该文件。
-- 创建资源（`POST /api/rest/:resource`）直接把 `req.body` 传给 `Model.create`，客户端可以写入 `hit_num`、`like_num`、`comments`、`aids` 等不应由前端控制的字段。待加 `creatable` 白名单。
-- `POST /admin/register` 直接把整个 `req.body` 传给 `User.create`，客户端可以指定 `_id`、`signature` 等字段。待加白名单。
-- `GET /keys` 在 `Key` 集合为空时，`result.content` 会抛错，且 handler 没有 try/catch，请求会挂起。
-- `docs/api/articles/articles.md` 中点赞接口的路径和请求体（`POST /articles/likes`，请求体 `aid`）与代码（`POST /articles/likes/:id`，无请求体）不一致。
+按影响程度排序。以下问题均通过阅读代码确认，目前尚未修复；修改相邻代码时请留意。
+
+### 高 —— 安全、数据正确性
+
+1. **密码填充方式仍是 PKCS#1 v1.5。** `encryptionScheme: 'pkcs1'` 存在 Bleichenbacher 类填充预言机风险。**密钥位数已于 2026-11 从 512 位升到 2048 位**（存量密文已重加密），但填充未改。改 OAEP 需**前后端同时上线**：前端加密方式、服务端 `encryptionScheme`、已存密文迁移，缺一不可。用户已同意改造，前端正在配合，迁移步骤写在 `docs/api/README.md` 的"安全说明"里，参考脚本 `scripts/migrate-keys-2048.js`。
+
+### 中 —— 功能缺陷
+
+2. **`/keys` 依赖手工维护的 `Key` 集合。** 代码中没有任何地方写入 `Key` 文档，`GET /keys` 完全依赖它。空集合现在返回 404（不再挂起），但部署后必须手工插入。维护方法见 `docs/api/other/other.md`。这是设计如此，不是待修复项，但容易忘。
+
+### 低 —— 代码卫生
+
+3. **`package-lock.json` 的 `resolved` 地址指向镜像源**（npmmirror、taobao），在其他网络环境安装可能失败。当前网络环境无法重新生成，暂缓。
+4. **`generateKeys()` 会覆盖密码密钥。** 它现在生成 2048 位密钥，但仍是"发现文件缺失就重新生成"的语义。目前只在显式调用时触发（`rsaControl.js` 的读取路径已不再回退到它），风险已大幅降低，但函数本身的行为仍值得注意。
 
 ## 依赖升级计划
 
@@ -165,22 +164,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 当前进度与待办（2026-11）
 
+**本轮已修复**（均已通过回归 30/30）：
+- 密钥文件缺失不再静默覆盖：`rsaControl.js` 的两套密钥读取都改为只读，删除回退到 `generateKeys()` 的分支；删除了无人调用的 `getPublicKeySync()` 和 `routes/getPubKey.js` 里的无用 import。
+- 创建接口字段白名单：`plugins/RESOURCE_POST_MAP.js` 新增 `creatable`（Article: `title/cover/content/column`；Column: `name`；Comment: `content/aid`）；不在映射表中的模型拒绝 POST（顺带堵住 `POST /api/rest/keys`）；`/admin/register` 只取 `username/password/email/nikname/avatar`。
+- 删除文章级联删除其下评论，与注销账号的规则统一。
+- `GET /keys` 空集合返回 404，不再挂起。
+- 上传 URL 改为字符串拼接，去掉了 `./` 前缀（原实现产出 `./http://127.0.0.1:3000/...`）。
+- 点赞：`artLikes.js` 文章不存在时返回 404（原来读 `null.like_num` 抛 500）；文档路径改为 `POST /articles/likes/:id`。
+- 清理调试输出：`app.js` 的三处 `'111'/'222'/'333'`、`user.js` 的两处、`bus.js` 的 `'123'`，错误日志改用 `debug`（`blog:app`、`blog:db`）；修掉错误处理器中 `err.message` 为 undefined 时二次抛错的问题；删掉 `require('process')`。
+- 删除死文件 `core/userControl.js`（用户已同意）；清理 `core/sendToken.js` 中未使用的 import。
+- `package.json` 增加 `"engines": { "node": ">=20" }`。
+- **密码密钥 512 → 2048 位**：`scripts/migrate-keys-2048.js`（支持 `--dry`）完成备份、生成新密钥、重加密两个存量用户、更新 `Key` 集合公钥。`generateKeys()` 也已改为 2048 位。迁移前备份在系统临时目录 `blog-key-migrate-*`。
+
 **未提交的改动**（提交前需展示变更摘要，用户未要求提交）：
-- 依赖升级与密钥拆分：`app.js`、`config.js`、`plugins/db.js`、`core/rsaControl.js`、`core/sendToken.js`、`core/util/util.js`、`routes/*.js`、`package.json`、`package-lock.json`。
+- 代码：`app.js`、`config.js`、`plugins/db.js`、`plugins/RESOURCE_POST_MAP.js`、`core/rsaControl.js`、`core/sendToken.js`、`core/util/util.js`、`routes/*.js`、`package.json`、`package-lock.json`；已删除 `core/userControl.js`。
 - 功能：`DELETE /user` 注销级联、`PUT /user` 旧密码校验、`users` 总线写入口关闭、`PUBLIC_VIEW` 公开字段收紧、搜索正则转义。
 - 文档：`README.md`、`docs/api/**`、`docs/db/README.md`。
-- 未纳入 git：`CLAUDE.md`（被 `.gitignore` 忽略）、`scripts/regress/`（新目录）、`.env.local`（已被忽略）、`auth/jwt-*.pem`（已被忽略）。
+- 未纳入 git：`CLAUDE.md`（被 `.gitignore` 忽略）、`scripts/`（新目录）、`.env.local`（已被忽略）、`auth/jwt-*.pem`（已被忽略）。
 
-**待用户决定**：
-- MongoDB 是否升级（不影响当前运行：mongoose 8 在 4.2.3 上已通过回归）。
-- `core/userControl.js` 是否删除（死代码；删除文件属红线操作，需用户明确要求）。
-- 密码加密从 PKCS#1 v1.5 改为 OAEP，需前端配合，暂不做。
-
-**已知不一致，待统一**：
-- 单独删除文章不级联删除评论，而注销账号会级联删除。两者规则应统一（见"已知问题"第一条）。
+**待办 / 待用户决定**：
+- **OAEP 改造**：用户已确认前端会配合，但需要与前端约定同一时间上线。步骤见 `docs/api/README.md` 的"安全说明（密码传输）"。
+- MongoDB 是否升级到 ≥ 4.4（升级后才能考虑 mongoose 9）。不影响当前运行。
+- `package-lock.json` 的镜像源地址：当前网络不允许重新生成，暂缓。
 
 **临时资产**：
-- `scripts/regress/`：回归脚本，可临时保留，长期是否入库由用户决定。
+- `scripts/regress/`：回归脚本，30 项，约 3 秒。
+- `scripts/migrate-keys-2048.js`：一次性密钥迁移脚本，保留作 OAEP 迁移的参考实现。
 - 数据库测试数据：`Postman1`（本地已有）、`Tester01`（回归脚本会用，缺失时自动注册）。账号密码只在 `.env.local`，不要写进代码或文档。
 
 注册请使用 `POST /admin/register`，修改资料请使用 `PUT /user`。`POST /api/rest/users`、`PUT`/`DELETE /api/rest/users/:id` 已取消，返回 404。改密码必须提供 `oldPassword`。`users` 的公开 GET 通过 `bus.js` 中的 `PUBLIC_VIEW` 只暴露 `nikname avatar signature`。

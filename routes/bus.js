@@ -33,9 +33,9 @@ router.post('/', async (req, res,next) => {
   if (modelName === 'User') return next(createError(404))
   try {
     let body = req.body
-    if(modelName in RESOURCE_POST_MAP){
-      body = RESOURCE_POST_MAP[modelName]['body'](body,req._id)
-    }
+    // 只接受白名单字段，未在映射表中的模型不提供创建入口
+    assert(modelName in RESOURCE_POST_MAP, 404, '资源不存在')
+    body = RESOURCE_POST_MAP[modelName]['body'](body,req._id)
     const result = await req.Model.create(body)
     if (modelName in POP_POST_MAP) {
       let item = POP_POST_MAP[modelName]
@@ -88,8 +88,6 @@ router.put('/:id', async (req, res, next) => {
         message: '修改成功'
     })
   }catch(err){
-    console.log(err.message,'123')
-
     next(err)
   }
 })
@@ -109,6 +107,10 @@ router.delete('/:id', async (req, res, next) => {
     let data = await req.Model.findById(id)
     assert(data, 404, '资源不存在')
     assert.equal(userId, data[authField], 403, '无权删除')
+    // 删除文章前先级联删除其下评论，与注销账号的规则保持一致
+    if (modelName === 'Article') {
+      await Comment.deleteMany({ aid: id })
+    }
     await req.Model.findByIdAndDelete(id)
     // 清理父文档中的引用：评论从文章移除并减少 comment_num，文章从专栏移除
     if (modelName === 'Comment') {
@@ -156,7 +158,6 @@ router.get('/', async (req, res,next) => {
       data:result
     })
   }catch(err){
-    console.log(err)
     next(createError(422,"获取失败"))
   }
 })
@@ -182,7 +183,7 @@ router.get('/:id', async (req, res, next) => {
     //通过ID查看资源的联动操作（异步执行，不阻塞响应）
     if(modelName in POP_GET_MAP){
       let {queryAct,options} = POP_GET_MAP[modelName]
-      req.Model[queryAct](_id,options()).catch(err => console.log(err))
+      req.Model[queryAct](_id,options()).catch(() => {})
     }
 
   }catch(err){

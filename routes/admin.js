@@ -32,7 +32,9 @@ router.post('/:classify', async (req, res, next) => {
       assert.equal(decrypt(password), decrypt(decrypt(user.password)), 422, '账号密码错误')
     }
     if (classify === 'register') {
-      user = await User.create(req.body)
+      // 只接受白名单字段，避免客户端指定 _id、signature 等
+      const { nikname, avatar, email } = req.body
+      user = await User.create({ username, password, email, nikname, avatar })
     }
 
     //生成token
@@ -45,7 +47,6 @@ router.post('/:classify', async (req, res, next) => {
       }
     })
   } catch (err) {
-    console.log(err)
     next(err)
   }
 });

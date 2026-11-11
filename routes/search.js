@@ -46,7 +46,6 @@ router.get('/', async (req, res, next) => {
     })
   } catch (err) {
     if (err.status === 400) return next(err)
-    console.log(err)
     next(createError(422, "获取失败"))
   }
 

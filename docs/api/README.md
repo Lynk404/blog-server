@@ -43,10 +43,15 @@
 
 ### 安全说明（密码传输）
 
-- 密码在客户端用 RSA 公钥加密（PKCS#1 v1.5，`encryptionScheme: 'pkcs1'`），密文随请求体传输。
-- 公钥由 `GET /keys` 提供，与服务端 `auth/public.cer` 一致，客户端应从该接口获取。
-- **已知风险**：PKCS#1 v1.5 加密存在 Bleichenbacher 类填充预言机风险，服务端会解密客户端提交的密文。推荐改为 OAEP（`pkcs1_oaep`）。
-- **改造需要前后端同时进行**：前端加密方式、服务端 `encryptionScheme`、以及数据库中已存储的密码密文都需要迁移，不能只改服务端。本项目目前未改造，待前端配合后再做。
+- 密码在客户端用 RSA 公钥加密后随请求体传输。密钥为 **2048 位**，加密填充为 **PKCS#1 v1.5**（`encryptionScheme: 'pkcs1'`）。
+- 公钥由 `GET /keys` 提供，与服务端 `auth/public.cer` 一致，客户端应从该接口获取，不要写死在前端。
+- **已知风险**：PKCS#1 v1.5 加密存在 Bleichenbacher 类填充预言机风险。推荐改为 OAEP（`pkcs1_oaep`）。
+- **前端配合事项（改造 OAEP 时）**：
+  1. 前端加密改为 OAEP（如 `node-rsa` 用 `setOptions({ encryptionScheme: 'pkcs1_oaep' })`，浏览器 `WebCrypto` 用 `RSA-OAEP`，注意摘要算法需与服务端一致，默认 `SHA-1`，`node-rsa` 的 `pkcs1_oaep` 也是 `SHA-1`）。
+  2. 服务端把 `core/util/util.js` 中 `encrypt`/`decrypt` 与 `generateKeys()` 的 `encryptionScheme` 一起改为 `pkcs1_oaep`。
+  3. 数据库中已存的密码密文需要迁移：用旧密钥旧填充解出明文，再用新填充重新加密写回。可参考 `scripts/migrate-keys-2048.js` 的写法（该脚本处理的是密钥位数升级，迁移方法相同）。
+  4. 三项必须同时上线，否则登录会全部失败。
+- 密钥位数已于 **2026-11 从 512 位升级到 2048 位**，存量用户密码已一并重加密，客户端无需改动。若前端曾把公钥写死，需改成从 `GET /keys` 获取。
 
 ### 免鉴权白名单
 
@@ -57,7 +62,7 @@
 | POST | `/admin/register` |
 | GET | `/keys` |
 | GET | `/articles/search` |
-| POST | `/articles/likes` |
+| POST | `/articles/likes/:id` |
 
 > 其余所有接口均需携带有效 Token。
 

@@ -61,7 +61,7 @@ blog-server/
 | --- | --- |
 | `host` / `port` | 服务监听地址与端口（默认 `127.0.0.1:3000`） |
 | `keyPath` | RSA 密钥目录 |
-| `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（`auth/public.cer`、`auth/private.cer`） |
+| `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（`auth/public.cer`、`auth/private.cer`，2048 位） |
 | `jwtPubKeyPath` / `jwtPriKeyPath` | JWT 验签公钥 / 签发私钥（`auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位，需单独生成） |
 | `uploadPath` / `uploadURL` | 上传文件存储目录与对外访问前缀 |
 | `maxFileSize` | 单文件最大字节数（默认 102400，约 100KB） |

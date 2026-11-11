@@ -49,7 +49,6 @@ router.put('/', async (req, res, next) => {
 //查询资源详情
 router.get('/', async (req, res, next) => {
   let _id = req._id
-  console.log(_id)
   try {
     let userResult = await User.findById(_id)
     let articleCount = await Article.countDocuments({ author: _id })
@@ -57,13 +56,11 @@ router.get('/', async (req, res, next) => {
     userResult = userResult.toJSON()
     userResult.articleCount = articleCount
     userResult.columnCount = columnCount
-    console.log(userResult)
     res.status(200).send({
       message: '查询成功',
       data: userResult
     })
   } catch (err) {
-    console.log(err)
     next(err)
   }
 })

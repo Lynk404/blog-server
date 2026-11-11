@@ -45,7 +45,8 @@ router.post('/:classify', upload.any(), async (req, res, next) => {
     }
     let fileURLS = req.files.map(item => {
       let { destination, filename } = item
-      return path.join(uploadURL, path.parse(destination).name, filename).replace(/\\/g, '/').replace('http:/', 'http://')
+      // 用字符串拼接而非 path.join：path.join 在 Windows 下会产出 .\ 前缀
+      return `${uploadURL.replace(/\/+$/, '')}/${path.parse(destination).name}/${filename}`
     })
     let resultData = {
       message: "上传成功",
@@ -66,7 +67,6 @@ router.post('/:classify', upload.any(), async (req, res, next) => {
 
 
   } catch (err) {
-    console.log(err)
     next(err)
   }
 

@@ -5,8 +5,19 @@
 返回当前 RSA 公钥，前端用于加密密码。
 - 响应：RSA 公钥字符串
 ```json
-{ "code": 200, "message": "ok", "data": { "publicKey": "-----BEGIN PUBLIC KEY-----..." } }
+{ "code": 200, "message": "ok", "data": { "pubKey": "-----BEGIN PUBLIC KEY-----..." } }
 ```
+- 公钥取自 `Key` 集合第一条文档的 `content` 字段，**密钥为 2048 位**。
+- **错误**：`Key` 集合为空时返回 `404`（`公钥未初始化`）。
+
+> ⚠️ **`Key` 集合需要手动维护**：代码中没有任何地方会写入 `Key` 文档，`GET /keys` 完全依赖它。部署或更换密钥后必须写入一条记录：
+> ```js
+> // mongosh db_blog
+> db.keys.deleteMany({})
+> db.keys.insertOne({ content: <auth/public.cer 的全文>, date: new Date() })
+> ```
+> 换密钥时 `content` 必须同步更新，否则前端拿到的公钥与服务端私钥不匹配，所有登录都会失败。
+> 密钥位数升级（512 → 2048）已通过 `scripts/migrate-keys-2048.js` 自动更新过该文档。
 
 ## 校验登录态
 **GET** `/index` （需鉴权）

@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const logger = require('morgan');
+const debug = require('debug')('blog:app')
 const cors = require('cors')
 const mongoose = require('./plugins/db') // 连接db
 const assert = require('http-assert')
@@ -47,12 +48,6 @@ const uploadRoute = require('./routes/upload')
 const searchRoute = require('./routes/search')
 const artLikesRoute = require('./routes/artLikes');
 const userRoute = require('./routes/user')
-const { send } = require('process');
-
-app.use((req, res, next) => {
-  console.log('111', '静态中间件未处理该请求，继续往后')
-  next()
-})
 
 app.use(expressJwt({
   secret: getJwtPublicKeySync(), //JWT 验签公钥（JWT 专用，与密码密钥分离）
@@ -82,17 +77,11 @@ app.use(expressJwt({
 }))
 
 app.use((req, res, next) => {
-  console.log('222', 'express-jwt，继续往后')
   next()
 });
 
 //资源路由
 app.use('/api/rest/:resource', resourceMiddleware(), busRoute)
-
-app.use((req, res, next) => {
-  console.log('333', '/api/rest/:resource，继续往后')
-  next()
-});
 
 //登录注册
 app.use('/admin', adminRoute)
@@ -158,8 +147,9 @@ app.use(function (err, req, res, next) {
   // res.locals.message = err.message;
   // res.locals.error = req.app.get('env') === 'development' ? err : {};
   // render the error page
-  console.log('err', err)
-  if (err.message.indexOf('duplicate key error') !== -1) {
+  debug('err: %O', err)
+  // err.message 可能为 undefined（如客户端主动中断），先兜底再判断
+  if (String(err.message || '').indexOf('duplicate key error') !== -1) {
     let repeatKey = Object.entries(err.keyPattern)?.map(([key, value]) => {
       return `${QUE_MAP?.[key]}不能重复`
     })[0]

@@ -36,6 +36,8 @@
 | `nikname` | string | 否 | 昵称 |
 | `avatar` | string | 否 | 头像 URL |
 
+> 只接受以上字段。`_id`、`signature` 等其余字段会被忽略，无法由客户端指定。
+
 **响应**
 ```json
 { "code": 200, "message": "注册成功" }
