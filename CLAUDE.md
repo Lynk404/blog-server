@@ -126,7 +126,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **其他端点。** 每个都位于 `routes/` 下各自的路由文件中。
 - `/user`：获取、修改（`PUT`，改密码需旧密码且会使旧 token 失效；可改 `password`/`email`/`nikname`/`avatar`）和注销（`DELETE`，需当前密码）当前用户，使用 `req._id`。注销的级联规则较重，会删除他人在本人专栏中的文章和他人在本人文章下的评论，详见 `docs/api/other/other.md`。
 - `/keys`：返回 `Key` 集合中的公钥。
-- `/upload/:classify`：`multer` 存储到 `uploads/{user|article}/`，只允许图片扩展名（`fileFilter`），未知分类在落盘前返回 400。`article` 分类返回 `{ errno, data }`，即富文本编辑器所需的格式。
+- `/upload/:classify`：`multer` 存储到 `uploads/{user|article}/`，只允许图片扩展名（`fileFilter`），未知分类在落盘前返回 400。头像上传（`user`）的 `uid` 必须等于当前用户，缺失返回 422、他人返回 403；multer 已落盘的文件在拒绝时由 `discardFiles` 删除。`article` 分类返回 `{ errno, data }`，即富文本编辑器所需的格式。
 - `/articles/search`：`GET`，免鉴权，必须带 `query[q]`（缺失返回 400），对 `title` 和 `content` 做转义后的正则搜索。
 - `/articles/likes/:id`：`POST`，需登录，使 `like_num` 加 1。
 
@@ -181,7 +181,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 低优先级（待排期）
 
 - **索引缺失。** `Comment.aid`、`Article.author`、`Article.column` 没有索引，删除级联和按作者查询会全表扫描。
-- **上传的 `uid` 字段未使用。** `routes/upload.js` 要求头像上传带 `uid`，但不校验它是否等于当前用户，也不用它写库。
 - **未使用的代码。** `core/statusControl.js` 没有引用，`routes/admin.js`、`routes/search.js` 有未使用的导入，`plugins/ADMIN_CLASSIFY.js`、`plugins/DATE_FROMAT_MAP.js` 的引用情况需再确认。清理前先确认，不要顺手删。
 
 ---

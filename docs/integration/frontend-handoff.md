@@ -111,13 +111,13 @@ const cipher = btoa(String.fromCharCode(...new Uint8Array(buf)))  // 2048 位密
 
 | 操作 | 方法与路径 | 请求体 | 权限 |
 | --- | --- | --- | --- |
-| 发文章 | POST `/api/rest/articles` | `{ title, content, column, cover? }` | `column` 必须是本人的专栏，否则 `403` |
+| 发文章 | POST `/api/rest/articles` | `{ title, content, column, cover? }` | `column` 必须是本人的专栏，否则 `403`；不存在的专栏 ID 为 `422`，格式不合法的 ID 为 `404` |
 | 改文章 | PUT `/api/rest/articles/:id` | `{ title?, cover?, content? }` | 仅作者，否则 `400` |
 | 删文章 | DELETE `/api/rest/articles/:id` | — | 仅作者，否则 `403`。会同时删除该文章的所有评论 |
 | 建专栏 | POST `/api/rest/columns` | `{ name }` | — |
 | 改专栏 | PUT `/api/rest/columns/:id` | `{ name }` | 仅作者，否则 `400` |
 | 删专栏 | DELETE `/api/rest/columns/:id` | — | 仅作者，否则 `403`。**会级联删除该专栏下所有文章（包括别人的）及其评论**，删除前必须提示 |
-| 发评论 | POST `/api/rest/comments` | `{ content, aid }` | `aid` 必须是已存在的文章，否则 `422` |
+| 发评论 | POST `/api/rest/comments` | `{ content, aid }` | `aid` 必须是已存在的文章：不存在为 `422`，格式不合法的 ID 为 `404` |
 | 改评论 | PUT `/api/rest/comments/:id` | `{ content }` | 仅作者，否则 `400` |
 | 删评论 | DELETE `/api/rest/comments/:id` | — | 仅作者，否则 `403` |
 | 点赞 | POST `/articles/likes/:id` | — | 需登录，未登录 `401`。不做重复点赞限制 |
@@ -130,11 +130,12 @@ const cipher = btoa(String.fromCharCode(...new Uint8Array(buf)))  // 2048 位密
 
 | 路径 | 用途 | 请求 | 成功响应 |
 | --- | --- | --- | --- |
-| POST `/upload/user` | 头像 | `file`、`uid`（必填，当前用户 id） | `{ message, data: { fileURL } }` |
+| POST `/upload/user` | 头像 | `file`、`uid`（必填，必须等于当前登录用户的 id；缺失返回 422，不是本人返回 403） | `{ message, data: { fileURL } }` |
 | POST `/upload/article` | 文章图片 | `file` | `{ errno: 0, data: [url] }` |
 
 - 只允许 `.jpg`、`.jpeg`、`.png`、`.gif`、`.webp`，其他返回 `422`。
 - 单文件最大 100 KB（102400 字节），超出返回 `422`。
+- 头像上传的 `uid` 必须是当前登录用户的 id，否则被拒绝，不会留下文件。
 - 头像上传后，还需调用 `PUT /user` 把 `fileURL` 写入 `avatar`。
 - 上传返回的地址是 `http://127.0.0.1:3000/...`，只在本地可访问。
 
@@ -146,7 +147,7 @@ const cipher = btoa(String.fromCharCode(...new Uint8Array(buf)))  // 2048 位密
 - `size`：默认 100，**上限 100**，超出按 100 处理
 - `query[column]=<专栏id>`：按专栏筛选文章
 - `query[q]=<关键字>`：标题和正文模糊搜索
-- `query` 中不允许 `$` 开头的键（如 `query[$where]`），否则 `400`
+- `GET /api/rest/:resource` 的 `query` 中不允许 `$` 开头的键（如 `query[$where]`），否则 `400`。`GET /articles/search` 不返回 400，这些键会被忽略，只按 `query[q]` 搜索
 
 返回：`data: { count, page, size, total, list, pages, display }`
 
@@ -163,10 +164,10 @@ const cipher = btoa(String.fromCharCode(...new Uint8Array(buf)))  // 2048 位密
 | 200 | 成功 | — |
 | 400 | 请求不合法（如非作者改文章、无可修改字段） | 展示 `message` |
 | 401 | 未登录、token 无效或过期、修改密码后 token 失效 | 清 token，跳登录 |
-| 403 | 无权删除或挂到他人专栏 | 展示 `message` |
+| 403 | 无权删除、挂到他人专栏，或上传他人头像（`uid` 不是本人） | 展示 `message` |
 | 404 | 资源不存在（ID 格式错误也是 404） | 展示"不存在" |
 | 422 | 字段校验失败、重复、文件超限或类型不对 | 展示 `message` |
-| 500 | 服务器错误 | 展示通用错误，不要展示原始 `message` |
+| 500 | 服务器错误 | 展示通用错误，不要展示原始 `message`。注意：当前 500 响应**没有 `code` 字段**，`message` 是服务端原始报错文本（尚未脱敏），前端不要依赖它的内容 |
 
 注意：没有 token 访问**任何不存在的路径**，也会返回 `401`，不会返回 `404`。
 

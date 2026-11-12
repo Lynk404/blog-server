@@ -42,6 +42,11 @@ const upload = multer({
 })
 
 // 鉴权与分类检查必须放在 multer 之前，否则未授权的请求也会先把文件写入磁盘
+// 拒绝请求时删除 multer 已写入磁盘的文件，避免留下垃圾文件
+function discardFiles (files = []) {
+  files.forEach(f => fs.rmSync(f.path, { force: true }))
+}
+
 router.post('/:classify', (req, res, next) => {
   assert(req.isPass, 401, '请先登录')
   assert(Object.prototype.hasOwnProperty.call(FILE_TYPE, req.params.classify), 400, '文件上传分类不正确')
@@ -52,8 +57,11 @@ router.post('/:classify', (req, res, next) => {
 
     assert(fileType, 400, '文件上传分类不正确')
     let { uid } = req.body
-    if (fileType === 'user') {
+    // 头像只能上传到本人名下：uid 缺失或不等于当前用户时拒绝
+    if (fileType === 'user' && String(uid) !== String(req._id)) {
+      discardFiles(req.files)
       assert(uid, 422, '用户头像必须指定UID')
+      throw createError(403, '无权上传该用户的头像')
     }
     let fileURLS = req.files.map(item => {
       let { destination, filename } = item

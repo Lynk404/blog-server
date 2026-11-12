@@ -322,6 +322,24 @@ async function scenarioUpload (dir, t) {
     check('上传超限图片 → 422', await up(t, Buffer.alloc(200 * 1024, 97), 'b.png'), 422)
     check('未知分类 → 400', (await fetch(`${srv.base}/upload/bogus`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: (() => { const fd = new FormData(); fd.append('file', new Blob([Buffer.from('hi')]), 'c.png'); return fd })() })).status, 400)
     check('上传无 token → 401', await up(null, Buffer.from('x'), 'c.txt'), 401)
+
+    // 头像 uid 必须是本人：他人 uid → 403 且不留文件；缺失 uid → 422 且不留文件；本人 uid → 200
+    const own = JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString())._id
+    const userDir = path.join(dir, 'uploads', 'user')
+    const countUserFiles = () => (fs.existsSync(userDir) ? fs.readdirSync(userDir).length : 0)
+    const upAvatar = async (uid) => {
+      const fd = new FormData()
+      fd.append('file', new Blob([Buffer.from('hi')]), 'av.png')
+      if (uid !== undefined) fd.append('uid', uid)
+      return fetch(`${srv.base}/upload/user`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
+    }
+    let before = countUserFiles()
+    check('头像 uid 为他人 → 403', (await upAvatar('000000000000000000000000')).status, 403)
+    check('头像 uid 为他人时不留文件', countUserFiles(), before)
+    before = countUserFiles()
+    check('头像缺 uid → 422', (await upAvatar(undefined)).status, 422)
+    check('头像缺 uid 时不留文件', countUserFiles(), before)
+    check('头像 uid 为本人 → 200', (await upAvatar(own)).status, 200)
   } finally {
     srv.child.kill()
   }
