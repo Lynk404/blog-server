@@ -1,6 +1,6 @@
 # Blog Server
 
-基于 **Node.js + Express + MongoDB** 的前后端分离博客后端，提供注册登录、**jwt-Token验证**、**JWT 鉴权**、**RSA加密**传输、**前端后端数据校验**、文章 / 专栏 / 评论的通用资源接口、文件上传、文章搜索与点赞等功能。
+基于 **Node.js + Express + MongoDB** 的前后端分离博客论坛后端，提供注册登录、**jwt-Token验证**、**JWT 鉴权**、**RSA加密**传输、**前端后端数据校验**、文章 / 专栏 / 评论的通用资源接口、文件上传、文章搜索与点赞等功能。
 
 > 详细接口说明见 [API 文档](./docs/api/README.md)，数据库字段见 [数据库设计](./docs/db/README.md)。
 
