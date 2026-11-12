@@ -5,6 +5,7 @@ const Comment = require('../models/Comment')
 module.exports = {
   "Comment": {
     "_refId": "aid",
+    "label": "文章",
     "_model": Article,
     "queryAct": "findByIdAndUpdate",
     "options": function (_id) {
@@ -20,6 +21,8 @@ module.exports = {
   },
   "Article": {
     "_refId": "column",
+    "label": "专栏",
+    "ownerField": "uid",
     "_model": Column,
     "queryAct": "findByIdAndUpdate",
     "options": function (_id) {

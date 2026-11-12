@@ -62,7 +62,14 @@ const schema = new mongoose.Schema({
       message: "密码必须为 数字+密码(大小写) 8-12位"
     },
     set (val, schematype) {
-      let isValidate = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!.#*?&]{8,12}$/.test(decrypt(val))
+      // 不是合法密文（解密失败）时直接判为格式不正确，交给 validator 返回统一提示
+      let plain
+      try {
+        plain = decrypt(val)
+      } catch (err) {
+        return '密码格式不正确'
+      }
+      let isValidate = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!.#*?&]{8,12}$/.test(plain)
       if (isValidate) {
         return encrypt(val)
       }

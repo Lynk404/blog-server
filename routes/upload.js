@@ -26,15 +26,25 @@ const storage = multer.diskStorage({
   }
 });
 
+// 只允许图片扩展名。未知分类在落盘前拒绝，不会留下残留文件
+const ALLOWED_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 const upload = multer({
   storage,
   limits: {
     fileSize: maxFileSize
+  },
+  fileFilter (req, file, cb) {
+    if (!ALLOWED_EXT.includes(path.extname(file.originalname).toLowerCase())) {
+      return cb(createError(422, '只允许上传图片文件（jpg/png/gif/webp）'))
+    }
+    cb(null, true)
   }
 })
 
-
-router.post('/:classify', upload.any(), async (req, res, next) => {
+router.post('/:classify', (req, res, next) => {
+  assert(Object.prototype.hasOwnProperty.call(FILE_TYPE, req.params.classify), 400, '文件上传分类不正确')
+  next()
+}, upload.any(), async (req, res, next) => {
   try {
     let fileType = FILE_TYPE[req.params['classify']] ?? ''
 

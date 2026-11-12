@@ -52,6 +52,8 @@ router.put('/', async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   let _id = req._id
   try {
+    // 账号已注销或 token 已因改密码失效时，isPass 为 false，不能继续读取用户
+    assert(req.isPass, 401, '请先登录')
     let userResult = await User.findById(_id)
     let articleCount = await Article.countDocuments({ author: _id })
     let columnCount = await Column.countDocuments({ uid: _id })

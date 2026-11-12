@@ -36,7 +36,10 @@ app.use((req, res, next) => {
 });
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(path.join(__dirname, 'uploads')));
+// nosniff：禁止浏览器按内容猜测类型，上传目录中的文件不会被当作脚本执行
+app.use(express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: res => res.setHeader('X-Content-Type-Options', 'nosniff')
+}));
 //中间件  nameMiddleware
 const resourceMiddleware = require('./middleware/resource')
 
@@ -142,7 +145,8 @@ const QUE_MAP = {
   "password": "密码",
   "email": "邮箱",
   "nikname": "昵称",
-  "avatar": "头像"
+  "avatar": "头像",
+  "name": "专栏名"
 }
 
 // error handler
@@ -167,6 +171,12 @@ app.use(function (err, req, res, next) {
     }).join(',')
     err.status = 422
     err.message = paramErrors
+  }
+
+  // 无效的 ObjectId（如 /articles/notanid）按资源不存在处理，不把 Mongo 原始报错返回给前端
+  if (err.name === 'CastError') {
+    err.status = 404
+    err.message = '资源不存在'
   }
 
   if (err.code in ERROR_CODE_MAP) {

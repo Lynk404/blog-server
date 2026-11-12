@@ -36,14 +36,22 @@ router.post('/', async (req, res,next) => {
     // 只接受白名单字段，未在映射表中的模型不提供创建入口
     assert(modelName in RESOURCE_POST_MAP, 404, '资源不存在')
     body = RESOURCE_POST_MAP[modelName]['body'](body,req._id)
+    // 先校验父文档存在再创建，避免写入指向不存在文章/专栏的孤儿数据
+    let item = POP_POST_MAP[modelName]
+    if (item) {
+      let refId = body[item._refId]
+      assert(refId, 422, `${item.label}必填`)
+      let parent = await item._model.findById(refId).select(item.ownerField || '_id')
+      assert(parent, 422, `${item.label}不存在`)
+      // 挂载到他人的专栏下会在对方注销或删除专栏时被级联删除，因此只允许挂到自己的专栏
+      if (item.ownerField) {
+        assert.equal(String(req._id), String(parent[item.ownerField]), 403, `无权添加到该${item.label}`)
+      }
+    }
     const result = await req.Model.create(body)
-    if (modelName in POP_POST_MAP) {
-      let item = POP_POST_MAP[modelName]
+    if (item) {
       let {_refId,_model,queryAct,options} = item
-      let _id = result._id
-      let refId = result?.[_refId]
-      assert(refId, 422, `${_refId} 必填`)
-      await _model[queryAct](refId,options(_id))
+      await _model[queryAct](result[_refId],options(result._id))
     }
     res.status(200).send({
       message: '提交成功',
@@ -133,12 +141,18 @@ router.delete('/:id', async (req, res, next) => {
   }
 })
 
+// 禁止客户端传入 Mongo 操作符（$where、$ne 等），防止通过 query 注入
+function hasOperator (obj) {
+  return Object.entries(obj || {}).some(([key, val]) => key.startsWith('$') || (val && typeof val === 'object' && hasOperator(val)))
+}
+
 //查询资源列表
 router.get('/', async (req, res,next) => {
   let modelName = req.Model.modelName
   let {options = {},page = 1,size = 100,query = {},dis = 8,populate={}} = req.query
- 
+
   query = qs.parse(query)
+  assert(!hasOperator(query), 400, '不支持的查询操作符')
   if(query.q){
     let regexp = new RegExp(escapeRegExp(query.q), 'i')
     query = {

@@ -48,8 +48,10 @@ async function pagination({ model, query, options, populate = {}, size, page, di
   // 支持 model 传字符串或 mongoose 模型对象
   const Model = typeof model === 'string' ? mongoose.model(model) : model
 
-  const pageNum = Number(page) || 1
-  const sizeNum = Number(size) || 10
+  // 单页上限 100，防止一次拉取全部数据；页码至少为 1
+  const MAX_SIZE = 100
+  const pageNum = Math.max(1, Number(page) || 1)
+  const sizeNum = Math.min(Math.max(1, Number(size) || 10), MAX_SIZE)
   const skip = (pageNum - 1) * sizeNum
 
   let q = Model.find(query).sort({ '_id': -1 }).skip(skip).limit(sizeNum)

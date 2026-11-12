@@ -76,16 +76,19 @@
 > ⚠️ 注销会删除**他人在本人专栏中发表的文章**，以及**他人在本人文章下的评论**。这是当前确定的规则，前端应在确认前明确提示用户。
 
 ## 文件上传
-**POST** `/upload` （需鉴权）
+**POST** `/upload/:classify` （需鉴权）
+`:classify` 为 `user`（头像）或 `article`（文章图片），其他值返回 `400`。
 **Content-Type**：`multipart/form-data`
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `file` | File | 是 | 上传文件，受 `config.maxFileSize` 限制 |
+| `file` | File | 是 | 上传文件，**只允许图片**：`.jpg` `.jpeg` `.png` `.gif` `.webp`（按扩展名判断），受 `config.maxFileSize` 限制 |
 | `uid` | string | 视场景 | 当分类为 `user`（头像）时必填 |
-| `classIfy` | string | 否 | 文件分类，如 `user` / `article` |
+
+> 文件类型不符返回 `422`（`只允许上传图片文件（jpg/png/gif/webp）`）。图片经同源访问时带 `X-Content-Type-Options: nosniff`。
 **响应**
 ```json
-{ "code": 200, "message": "ok", "data": { "url": "http://127.0.0.1:3000/<filename>" } }
+// classify=user：{ "message": "上传成功", "data": { "fileURL": "http://127.0.0.1:3000/user/<filename>" } }
+// classify=article（富文本编辑器格式）：{ "errno": 0, "data": ["http://127.0.0.1:3000/article/<filename>"] }
 ```
 **错误**
 - 文件超过限制：`422`，`文件大小不得超过 102400 bytes`

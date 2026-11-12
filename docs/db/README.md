@@ -108,8 +108,8 @@
 
 ## 数据一致性说明
 
-- 创建 **Comment** 时同步向 `Article.comments` push ID，并 `comment_num + 1`。
-- 创建 **Article** 时同步向 `Column.aids` push ID。
+- 创建 **Comment** 时同步向 `Article.comments` push ID，并 `comment_num + 1`。`aid` 必须指向已存在的文章，否则返回 `422`（`文章不存在`），不写入。
+- 创建 **Article** 时同步向 `Column.aids` push ID。`column` 必须指向已存在的专栏，否则返回 `422`（`专栏不存在`），不写入。
 - 访问 **Article** 详情时 `hit_num + 1`。
 - 删除 **Comment** 时从 `Article.comments` `$pull` 该 ID，并 `comment_num - 1`。
 - 删除 **Article** 时先删除该文章下的全部 `Comment`，再从 `Column.aids` `$pull` 该 ID，与注销账号的级联规则保持一致。

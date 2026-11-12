@@ -3,7 +3,7 @@ const { formatDate } = require('../core/util/util')
 const schema = new mongoose.Schema({
   content: {
     type: String,
-    required: true,
+    required: [true, '评论内容必填'],
   },
   //更新日期
   date: {

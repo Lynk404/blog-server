@@ -4,7 +4,7 @@ const { formatDate } = require('../core/util/util')
 const schema = new mongoose.Schema({
   title: {
     type: String,
-    required: true,
+    required: [true, '标题必填'],
     default: "默认标题" + new Date().toDateString()
   },
   //封面图
@@ -23,7 +23,7 @@ const schema = new mongoose.Schema({
         return val
       }
     },
-    required: true,
+    required: [true, '内容必填'],
   },
   //更新日期
   date: {

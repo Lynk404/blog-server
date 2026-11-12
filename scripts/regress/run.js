@@ -163,6 +163,7 @@ async function scenarioCancel (c) {
   check('级联：他人评论的计数回退', (await getArt(c.base, a3)).comment_num, 0)
   check('注销后旧 token 被拒（PUT /user）', (await call(c.base, 'PUT', '/user', C, { nikname: 'x' })).status, 400)
   check('注销后无法登录 → 422', (await call(c.base, 'POST', '/admin/login', null, { username: cu.u, password: enc(cu.p) })).status, 422)
+  check('注销后 GET /user → 401（不再 500）', (await call(c.base, 'GET', '/user', C)).status, 401)
 
   await call(c.base, 'DELETE', '/api/rest/articles/' + a3, c.t)
   await call(c.base, 'DELETE', '/api/rest/columns/' + colT, c.t)
@@ -213,7 +214,14 @@ async function scenarioColumnCascade (c) {
   const O = await newUser(c.base, 'rgc')
   const col = await mkCol(c.base, O.tok)
   const own = await mkArt(c.base, O.tok, col, 'rg-casc-own')
-  const others = await mkArt(c.base, c.t, col, 'rg-casc-other') // 他人文章挂在 O 的专栏下
+  // 他人文章挂在 O 的专栏下：API 已禁止（403），这里直接写库制造存量数据，验证级联逻辑仍覆盖它
+  const tid = JSON.parse(Buffer.from(c.t.split('.')[1], 'base64url').toString())._id
+  await mongoose.connect(MONGO_URI)
+  const othersId = new mongoose.Types.ObjectId()
+  await mongoose.connection.db.collection('articles').insertOne({ _id: othersId, title: 'rg-casc-other', content: 'c', cover: '', date: new Date(), hit_num: 0, comment_num: 0, like_num: 0, comments: [], author: new mongoose.Types.ObjectId(tid), column: new mongoose.Types.ObjectId(col) })
+  await mongoose.connection.db.collection('columns').updateOne({ _id: new mongoose.Types.ObjectId(col) }, { $push: { aids: othersId } })
+  await mongoose.disconnect()
+  const others = String(othersId)
   await call(c.base, 'POST', '/api/rest/comments', O.tok, { content: 'rg-casc-c1', aid: others })
   check('级联前他人文章存在', (await call(c.base, 'GET', '/api/rest/articles/' + others)).status, 200)
   check('非专栏主人删除 → 403', (await call(c.base, 'DELETE', '/api/rest/columns/' + col, c.t)).status, 403)
@@ -221,6 +229,66 @@ async function scenarioColumnCascade (c) {
   check('级联：本人文章删除', (await call(c.base, 'GET', '/api/rest/articles/' + own)).status, 404)
   check('级联：他人文章删除', (await call(c.base, 'GET', '/api/rest/articles/' + others)).status, 404)
   check('清理临时用户 → 200', (await call(c.base, 'DELETE', '/user', O.tok, { password: enc(O.u.p) })).status, 200)
+}
+
+// 错误路径：无效 ID → 404，非法密文 → 422，中文必填/重名提示，评论不能挂到不存在的文章上
+async function scenarioErrors (c) {
+  check('无效 ID 详情 → 404', (await call(c.base, 'GET', '/api/rest/articles/notanid')).status, 404)
+  check('无效 ID 点赞 → 404', (await call(c.base, 'POST', '/articles/likes/notanid')).status, 404)
+  check('登录密文非法 → 422', (await call(c.base, 'POST', '/admin/login', null, { username: USER1.u, password: 'abc' })).status, 422)
+
+  const name = 'rg-dup-' + uniq()
+  const first = await call(c.base, 'POST', '/api/rest/columns', c.t, { name })
+  check('专栏首次创建 → 200', first.status, 200)
+  const dup = await call(c.base, 'POST', '/api/rest/columns', c.t, { name })
+  check('专栏重名 → 422', dup.status, 422)
+  check('专栏重名提示中文', dup.body.message, '专栏名不能重复')
+  await call(c.base, 'DELETE', '/api/rest/columns/' + first.body.data.id, c.t)
+
+  const noName = await call(c.base, 'POST', '/api/rest/columns', c.t, {})
+  check('专栏缺名 → 中文必填提示', noName.body.message, '专栏名必填')
+
+  const col = await mkCol(c.base, c.t)
+  const noContent = await call(c.base, 'POST', '/api/rest/articles', c.t, { title: 't', column: col })
+  check('文章缺内容 → 中文必填提示', noContent.body.message, '内容必填')
+  const ghostCol = await call(c.base, 'POST', '/api/rest/articles', c.t, { title: 't', content: 'c', column: '000000000000000000000000' })
+  check('文章挂到不存在的专栏 → 422', ghostCol.status, 422)
+  check('文章挂到不存在的专栏提示', ghostCol.body.message, '专栏不存在')
+  // 文章只能挂到自己的专栏：他人专栏返回 403，且不写入
+  const other = await newUser(c.base, 'rgo')
+  const otherCol = await mkCol(c.base, other.tok)
+  const foreign = await call(c.base, 'POST', '/api/rest/articles', c.t, { title: 'rg-foreign', content: 'c', column: otherCol })
+  check('文章挂到他人专栏 → 403', foreign.status, 403)
+  check('文章挂到他人专栏提示', foreign.body.message, '无权添加到该专栏')
+  await call(c.base, 'DELETE', '/user', other.tok, { password: enc(other.u.p) })
+
+  // 公开列表：禁止 Mongo 操作符，size 上限 100
+  check('查询含 $where → 400', (await call(c.base, 'GET', '/api/rest/articles?query[$where]=1')).status, 400)
+  check('查询含嵌套操作符 → 400', (await call(c.base, 'GET', '/api/rest/articles?query[title][$ne]=x')).status, 400)
+  const big = await call(c.base, 'GET', '/api/rest/articles?size=100000')
+  check('size 上限为 100', big.body.data.size, 100)
+
+  // 注册弱密码/非法密文：统一为密码格式提示，不再暴露类型转换错误
+  const weak = await call(c.base, 'POST', '/admin/register', null, { username: 'rgw' + String(Math.floor(10000 + Math.random() * 89999)), password: 'Abc', email: `rgw${uniq()}@example.com` })
+  check('注册非法密文 → 422', weak.status, 422)
+  check('登录原型链属性 → 400', (await call(c.base, 'POST', '/admin/constructor', c.t, { username: 'a', password: enc('b') })).status, 400)
+  check('注册非法密文提示', weak.body.message, '密码必须为 数字+密码(大小写) 8-12位')
+
+  const ghostArtTitle = 'rg-ghost-art-' + uniq()
+  await call(c.base, 'POST', '/api/rest/articles', c.t, { title: ghostArtTitle, content: 'c', column: '000000000000000000000000' })
+  const ghostArtList = await call(c.base, 'GET', '/api/rest/articles?query[title]=' + ghostArtTitle)
+  check('孤儿文章未写入', ghostArtList.body.data.total, 0)
+
+  const ghostText = 'rg-ghost-' + uniq()
+  const ghost = await call(c.base, 'POST', '/api/rest/comments', c.t, { content: ghostText, aid: '000000000000000000000000' })
+  check('评论挂到不存在的文章 → 422', ghost.status, 422)
+  check('评论挂到不存在的文章提示', ghost.body.message, '文章不存在')
+  const ghostList = await call(c.base, 'GET', '/api/rest/comments?query[content]=' + ghostText)
+  check('孤儿评论未写入', ghostList.body.data.total, 0)
+  const noAid = await call(c.base, 'POST', '/api/rest/comments', c.t, { content: 'x' })
+  check('评论缺文章 → 中文必填提示', noAid.body.message, '文章必填')
+
+  await call(c.base, 'DELETE', '/api/rest/columns/' + col, c.t)
 }
 
 async function scenarioUpload (dir, t) {
@@ -232,8 +300,10 @@ async function scenarioUpload (dir, t) {
       const r = await fetch(`${srv.base}/upload/article`, { method: 'POST', headers: tok ? { Authorization: 'Bearer ' + tok } : {}, body: fd })
       return r.status
     }
-    check('上传小文件 → 200', await up(t, Buffer.from('hi'), 'a.txt'), 200)
-    check('上传超限文件 → 422', await up(t, Buffer.alloc(200 * 1024, 97), 'b.txt'), 422)
+    check('上传图片 → 200', await up(t, Buffer.from('hi'), 'a.png'), 200)
+    check('上传非图片 → 422', await up(t, Buffer.from('hi'), 'x.html'), 422)
+    check('上传超限图片 → 422', await up(t, Buffer.alloc(200 * 1024, 97), 'b.png'), 422)
+    check('未知分类 → 400', (await fetch(`${srv.base}/upload/bogus`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: (() => { const fd = new FormData(); fd.append('file', new Blob([Buffer.from('hi')]), 'c.png'); return fd })() })).status, 400)
     check('上传无 token → 401', await up(null, Buffer.from('x'), 'c.txt'), 401)
   } finally {
     srv.child.kill()
@@ -294,7 +364,8 @@ async function main () {
       ['注销级联', () => scenarioCancel(c)],
       ['JWT 鉴权', () => scenarioJwt(c)],
       ['用户资料（头像与改密码）', () => scenarioUserEdit(c)],
-      ['专栏级联删除', () => scenarioColumnCascade(c)]
+      ['专栏级联删除', () => scenarioColumnCascade(c)],
+      ['错误路径与校验', () => scenarioErrors(c)]
     ]) {
       console.log(`--- ${name}`)
       try { await fn() } catch (e) { check(`${name} 异常: ${e.message}`, true, false) }

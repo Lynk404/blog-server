@@ -3,7 +3,7 @@ const { formatDate } = require('../core/util/util')
 const schema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
+    required: [true, '专栏名必填'],
     unique: true
   },
   //更新日期

@@ -57,9 +57,9 @@ URL 中的 `:resource` 采用**复数形式**，框架底层会通过 `inflectio
 | 参数 | 默认值 | 类型 | 说明 |
 | --- | --- | --- | --- |
 | `page` | `1` | Number | 当前页码 |
-| `size` | `100` | Number | 每页条目数 |
+| `size` | `100` | Number | 每页条目数，**上限 100**，超出按 100 处理 |
 | `dis` | `8` | Number | 分页器显示的页码数量 |
-| `query` | `{}` | Object | 数据库查询条件（支持 qs 嵌套解析） |
+| `query` | `{}` | Object | 数据库查询条件（支持 qs 嵌套解析）。**不允许 Mongo 操作符**（键名以 `$` 开头，如 `query[$where]`、`query[title][$ne]`），传入返回 `400` |
 | `query[q]` | - | String | **全局关键字搜索**（部分资源如文章，会针对 title/content 做正则搜索） |
 | `options` | `{}` | Object | Mongoose 查询配置（如排序、字段过滤） |
 

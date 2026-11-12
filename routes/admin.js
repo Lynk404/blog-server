@@ -17,7 +17,8 @@ router.post('/:classify', async (req, res, next) => {
   let { username, password } = req.body
   let { classify } = req.params
 
-  let isClassPass = classify in CLASSIFY
+  // 只认自有属性，避免 constructor 等原型链属性命中
+  let isClassPass = Object.prototype.hasOwnProperty.call(CLASSIFY, classify)
   assert(isClassPass, 400, '无效的请求')
   let user
   // +password 设置追加返回password内容 password Schema设置select为false时使用
@@ -29,7 +30,14 @@ router.post('/:classify', async (req, res, next) => {
       user = await User.findOne({ username }).select('+password')
       assert(user, 422, "用户不存在")
       //校验密码
-      assert.equal(decrypt(password), decrypt(decrypt(user.password)), 422, '账号密码错误')
+      //密文格式非法（解密抛错）与密码不一致一样处理为 422
+      let isMatch = false
+      try {
+        isMatch = decrypt(password) === decrypt(decrypt(user.password))
+      } catch (err) {
+        isMatch = false
+      }
+      assert(isMatch, 422, '账号密码错误')
     }
     if (classify === 'register') {
       // 只接受白名单字段，避免客户端指定 _id、signature 等
