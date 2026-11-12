@@ -77,7 +77,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - 全部：`node scripts/regress/run.js`（约数秒，不符合预期时退出码非 0）
   - 跳过上传：`node scripts/regress/run.js --no-upload`（不写任何文件）
   - 脚本自启动临时服务、自建测试数据并清理、结束时只关闭自己的子进程。账号读取 `.env.local`，需要本地 MongoDB 与 `Postman1` 账号存在。
-  - 覆盖：文章权限、搜索/点赞白名单、注销级联、JWT 鉴权、用户资料（头像与改密码）、专栏级联删除、错误路径与校验、上传（沙箱）、数据库一致性审计。
+  - 覆盖：文章权限、搜索/点赞白名单、注销级联、JWT 鉴权（含修改密码与注销后的旧 token 在各写入口返回 401）、用户资料（头像与改密码）、专栏级联删除、错误路径与校验、上传（沙箱）、数据库一致性审计。
   - 新增或修改接口后应运行；失败时输出服务日志末尾。
 - 启动前必须准备好：
   - MongoDB，地址 `mongodb://127.0.0.1:27017/db_blog`。该地址硬编码在 `plugins/db.js`，不在 `config.js`。首次连接失败时服务打印错误并以退出码 1 结束，不会带着未连接的数据库启动。
@@ -107,6 +107,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `routes/admin.js` 处理 `POST /admin/login` 和 `POST /admin/register`。`core/sendToken.js` 用 `auth/jwt-private.pem` 签发 RS256 JWT，`app.js` 的 `express-jwt` 用 `auth/jwt-public.pem` 验签（`core/rsaControl.js` 的 `getJwtPublicKeySync` / `getJwtPrivateKey`）。载荷为 `{ username, _id }`，有效期 3 天。JWT 密钥与密码密钥分离后，此前的 token 全部失效。
 - `express-jwt` 的 `isRevoked` 钩子会在每个已鉴权请求上执行 `User.findById`。它设置 `req._id` 和 `req.isPass`，但从不拒绝请求。每个处理器必须自己检查 `req.isPass`。签发时间（`iat`，秒）早于 `User.pwdChangedAt` 的 token 同样置为 `isPass = false`，改密码时由 `PUT /user` 写入该字段。
 - 未登录访问任何路径（包括不存在的路径）都返回 401，因为鉴权先于路由执行。
+- **所有需要登录的写入口都必须检查 `req.isPass`**（`express-jwt` 的 `isRevoked` 对修改密码后的旧 token、已注销账号的 token 置为 `false`，但从不拒绝）。当前已覆盖：`bus.js` 的 POST、PUT、DELETE，`routes/user.js`，`routes/artLikes.js`，`routes/upload.js`（检查放在 multer 之前，避免先写盘）。新增写入口时必须同样检查，并在回归中加入旧 token 用例。
 - 密码由客户端用公钥做 RSA 加密（2048 位，**OAEP 填充，SHA-1**）。`User.password` 的 setter 先用 `decrypt()` 校验传入的密文，然后存储 `encrypt(密文)`。登录时比较 `decrypt(客户端密文)` 与 `decrypt(decrypt(存储值))`。**两层解密都要传 `'utf8'`**，第一层漏掉会抛 `Error during decryption`。
 - 填充方式由常量 `ENCRYPTION_SCHEME = 'pkcs1_oaep'`（`core/util/util.js`）统一定义，改填充只改这一处。**前端必须用 `RSA-OAEP` + `SHA-1`**，`SHA-256` 会导致解密失败。
 
@@ -146,6 +147,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 前端尚未同步改造。在它发版之前，旧客户端提交的 pkcs1 密文会被服务端拒绝，登录和注册全部失败。前端改法（WebCrypto 与 node-rsa 两种写法）已写在 `docs/api/README.md` 的"安全说明（密码传输）"，关键是 `hash: 'SHA-1'`，用 `SHA-256` 同样会失败。
 
 > 本地开发用回归脚本验证，脚本已同步改为 OAEP；只有真实前端还停在旧填充。
+
 
 **2. CORS 允许任意来源并携带凭据**
 

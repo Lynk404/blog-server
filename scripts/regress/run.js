@@ -150,6 +150,7 @@ async function scenarioCancel (c) {
   const cu = { u: 'cx' + n, p: USER2.p }
   const reg = await call(c.base, 'POST', '/admin/register', null, { username: cu.u, password: enc(cu.p), email: `cx${n}@example.com`, nikname: '注销测试' })
   const C = reg.body.data.token
+  const cid = reg.body.data.userId
   const col1 = await mkCol(c.base, C)
   const a1 = await mkArt(c.base, C, col1, 'rg-cancel-a1')
   await call(c.base, 'POST', '/api/rest/comments', c.t, { content: 'rg-on-a1', aid: a1 })
@@ -165,6 +166,12 @@ async function scenarioCancel (c) {
   check('级联：他人评论的计数回退', (await getArt(c.base, a3)).comment_num, 0)
   check('注销后旧 token 被拒（PUT /user）', (await call(c.base, 'PUT', '/user', C, { nikname: 'x' })).status, 400)
   check('注销后无法登录 → 422', (await call(c.base, 'POST', '/admin/login', null, { username: cu.u, password: enc(cu.p) })).status, 422)
+  const ghostCol = await call(c.base, 'POST', '/api/rest/columns', C, { name: 'rg-gone-' + uniq() })
+  check('注销后旧 token 创建专栏 → 401', ghostCol.status, 401)
+  // 若修复前写入成功，清掉指向已注销用户的孤儿专栏，避免残留
+  await mongoose.connect(MONGO_URI)
+  await mongoose.connection.db.collection('columns').deleteMany({ uid: new mongoose.Types.ObjectId(cid) })
+  await mongoose.disconnect()
   check('注销后 GET /user → 401（不再 500）', (await call(c.base, 'GET', '/user', C)).status, 401)
 
   await call(c.base, 'DELETE', '/api/rest/articles/' + a3, c.t)
@@ -206,6 +213,14 @@ async function scenarioUserEdit (c) {
   const newPwd = 'Zyxwvut98'
   check('改密码（带旧密码）→ 200', (await call(c.base, 'PUT', '/user', A.tok, { password: enc(newPwd), oldPassword: enc(A.u.p) })).status, 200)
   check('改密码后旧 token 被拒 → 400', (await call(c.base, 'PUT', '/user', A.tok, { nikname: 'x' })).status, 400)
+  // 旧 token 的写操作必须统一返回 401（POST、点赞、上传都要检查 isPass）
+  check('旧 token 创建专栏 → 401', (await call(c.base, 'POST', '/api/rest/columns', A.tok, { name: 'rg-stale-' + uniq() })).status, 401)
+  check('旧 token 点赞 → 401', (await call(c.base, 'POST', '/articles/likes/000000000000000000000000', A.tok)).status, 401)
+  // 上传用 .txt：修复前会在 fileFilter 处被 422 拒绝，修复后应在 multer 之前按 401 拒绝，不会写入文件
+  const fd = new FormData()
+  fd.append('file', new Blob([Buffer.from('x')]), 'stale.txt')
+  const staleUp = await fetch(c.base + '/upload/article', { method: 'POST', headers: { Authorization: 'Bearer ' + A.tok }, body: fd })
+  check('旧 token 上传 → 401', staleUp.status, 401)
   const fresh = await login(c.base, { u: A.u.u, p: newPwd })
   check('新密码可登录并拿到新 token', !!fresh, true)
   check('新 token 可用 → 200', (await call(c.base, 'GET', '/user', fresh)).status, 200)

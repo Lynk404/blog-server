@@ -32,6 +32,8 @@ router.post('/', async (req, res,next) => {
   // 用户注册统一走 /admin/register，总线不提供创建用户的入口
   if (modelName === 'User') return next(createError(404))
   try {
+    // 修改密码或注销后旧 token 的 isPass 为 false，不能再以该身份创建内容
+    assert(req.isPass, 401, '请先登录')
     let body = req.body
     // 只接受白名单字段，未在映射表中的模型不提供创建入口
     assert(modelName in RESOURCE_POST_MAP, 404, '资源不存在')

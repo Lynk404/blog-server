@@ -7,6 +7,8 @@ const Article = require('../models/Article')
 router.post('/:id', async (req, res, next) => {
   let id = req.params.id
   try {
+    // 点赞需要登录：修改密码或注销后的旧 token 不能继续点赞
+    assert(req.isPass, 401, '请先登录')
     let result = await Article.findByIdAndUpdate(id, {
       $inc: {
         like_num: 1

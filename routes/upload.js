@@ -41,7 +41,9 @@ const upload = multer({
   }
 })
 
+// 鉴权与分类检查必须放在 multer 之前，否则未授权的请求也会先把文件写入磁盘
 router.post('/:classify', (req, res, next) => {
+  assert(req.isPass, 401, '请先登录')
   assert(Object.prototype.hasOwnProperty.call(FILE_TYPE, req.params.classify), 400, '文件上传分类不正确')
   next()
 }, upload.any(), async (req, res, next) => {
