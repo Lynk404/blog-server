@@ -35,6 +35,8 @@ router.put('/', async (req, res, next) => {
         isMatch = false
       }
       assert(isMatch, 422, '旧密码错误')
+      // 记录修改时间，使此前签发的 token 失效
+      updateData.pwdChangedAt = Math.floor(Date.now() / 1000)
     }
 
     await User.findByIdAndUpdate(userId, updateData, { runValidators: true, new: true })

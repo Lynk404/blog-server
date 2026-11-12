@@ -34,6 +34,7 @@
 | `avatar` | String | 否 | 否 | 头像 URL |
 | `nikname` | String | 否 | 否 | 昵称 |
 | `signature` | String | 否 | 否 | 个性签名 |
+| `pwdChangedAt` | Number | 否 | 否 | 最近一次修改密码的时间（Unix 秒，默认不查询 `select: false`）。签发时间早于它的 JWT 失效 |
 
 ### 2. Column (专栏/分类表)
 文章的分类目录。
@@ -112,6 +113,7 @@
 - 访问 **Article** 详情时 `hit_num + 1`。
 - 删除 **Comment** 时从 `Article.comments` `$pull` 该 ID，并 `comment_num - 1`。
 - 删除 **Article** 时先删除该文章下的全部 `Comment`，再从 `Column.aids` `$pull` 该 ID，与注销账号的级联规则保持一致。
+- 删除 **Column** 时级联删除其下全部 **Article**（包括他人发表的）及这些文章下的全部 `Comment`，规则同注销账号。
 - 注销 **User**（`DELETE /user`）时的级联删除，规则见 [其他接口 - 注销账号](../api/other/other.md)：删除其专栏及专栏中的文章、其作为作者的文章、待删文章下的所有评论、其本人发表的评论，并修正保留文章的 `comments` 与 `comment_num`。
 - 更新资源时自动刷新 `date` 字段。
 - 创建资源时只接受白名单字段（`plugins/RESOURCE_POST_MAP.js` 的 `creatable`）：Article 为 `title/cover/content/column`，Column 为 `name`，Comment 为 `content/aid`。计数器与引用数组由服务端维护，客户端传入会被忽略。

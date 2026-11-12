@@ -183,6 +183,46 @@ async function scenarioJwt (c) {
   check('篡改载荷的 token → 401', (await call(c.base, 'GET', '/user', forged)).status, 401)
 }
 
+// 临时用户：用户名 6-8 位字母数字，密码满足 8-12 位大小写+数字
+async function newUser (base, tag) {
+  const n = String(Math.floor(10000 + Math.random() * 89999))
+  const u = { u: tag + n, p: 'Abcdefg12' }
+  const reg = await call(base, 'POST', '/admin/register', null, {
+    username: u.u, password: enc(u.p), email: `${tag}${n}@example.com`, nikname: '回归'
+  })
+  return { u, tok: reg.body.data.token }
+}
+
+async function scenarioUserEdit (c) {
+  const A = await newUser(c.base, 'rgu')
+  const avatar = 'http://127.0.0.1:3000/images/rg.png'
+  check('改头像（PUT /user avatar）→ 200', (await call(c.base, 'PUT', '/user', A.tok, { avatar })).status, 200)
+  check('头像已写入', (await call(c.base, 'GET', '/user', A.tok)).body.data.avatar, avatar)
+  // 旧 token 的 iat 必须早于改密码的秒级时间戳，否则会与"同秒签发"的边界混在一起
+  await sleep(1100)
+  const newPwd = 'Zyxwvut98'
+  check('改密码（带旧密码）→ 200', (await call(c.base, 'PUT', '/user', A.tok, { password: enc(newPwd), oldPassword: enc(A.u.p) })).status, 200)
+  check('改密码后旧 token 被拒 → 400', (await call(c.base, 'PUT', '/user', A.tok, { nikname: 'x' })).status, 400)
+  const fresh = await login(c.base, { u: A.u.u, p: newPwd })
+  check('新密码可登录并拿到新 token', !!fresh, true)
+  check('新 token 可用 → 200', (await call(c.base, 'GET', '/user', fresh)).status, 200)
+  check('清理临时用户 → 200', (await call(c.base, 'DELETE', '/user', fresh, { password: enc(newPwd) })).status, 200)
+}
+
+async function scenarioColumnCascade (c) {
+  const O = await newUser(c.base, 'rgc')
+  const col = await mkCol(c.base, O.tok)
+  const own = await mkArt(c.base, O.tok, col, 'rg-casc-own')
+  const others = await mkArt(c.base, c.t, col, 'rg-casc-other') // 他人文章挂在 O 的专栏下
+  await call(c.base, 'POST', '/api/rest/comments', O.tok, { content: 'rg-casc-c1', aid: others })
+  check('级联前他人文章存在', (await call(c.base, 'GET', '/api/rest/articles/' + others)).status, 200)
+  check('非专栏主人删除 → 403', (await call(c.base, 'DELETE', '/api/rest/columns/' + col, c.t)).status, 403)
+  check('专栏主人删除 → 200', (await call(c.base, 'DELETE', '/api/rest/columns/' + col, O.tok)).status, 200)
+  check('级联：本人文章删除', (await call(c.base, 'GET', '/api/rest/articles/' + own)).status, 404)
+  check('级联：他人文章删除', (await call(c.base, 'GET', '/api/rest/articles/' + others)).status, 404)
+  check('清理临时用户 → 200', (await call(c.base, 'DELETE', '/user', O.tok, { password: enc(O.u.p) })).status, 200)
+}
+
 async function scenarioUpload (dir, t) {
   const srv = await startServer(dir)
   try {
@@ -252,7 +292,9 @@ async function main () {
       ['文章权限', () => scenarioArticles(c)],
       ['搜索与点赞白名单', () => scenarioSearchLikes(c)],
       ['注销级联', () => scenarioCancel(c)],
-      ['JWT 鉴权', () => scenarioJwt(c)]
+      ['JWT 鉴权', () => scenarioJwt(c)],
+      ['用户资料（头像与改密码）', () => scenarioUserEdit(c)],
+      ['专栏级联删除', () => scenarioColumnCascade(c)]
     ]) {
       console.log(`--- ${name}`)
       try { await fn() } catch (e) { check(`${name} 异常: ${e.message}`, true, false) }

@@ -105,7 +105,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **鉴权。**
 - `routes/admin.js` 处理 `POST /admin/login` 和 `POST /admin/register`。`core/sendToken.js` 用 `auth/jwt-private.pem` 签发 RS256 JWT，`app.js` 的 `express-jwt` 用 `auth/jwt-public.pem` 验签（`core/rsaControl.js` 的 `getJwtPublicKeySync` / `getJwtPrivateKey`）。载荷为 `{ username, _id }`，有效期 3 天。JWT 密钥与密码密钥分离后，此前的 token 全部失效。
-- `express-jwt` 的 `isRevoked` 钩子会在每个已鉴权请求上执行 `User.findById`。它设置 `req._id` 和 `req.isPass`，但从不拒绝请求。每个处理器必须自己检查 `req.isPass`。
+- `express-jwt` 的 `isRevoked` 钩子会在每个已鉴权请求上执行 `User.findById`。它设置 `req._id` 和 `req.isPass`，但从不拒绝请求。每个处理器必须自己检查 `req.isPass`。签发时间（`iat`，秒）早于 `User.pwdChangedAt` 的 token 同样置为 `isPass = false`，改密码时由 `PUT /user` 写入该字段。
 - 密码由客户端用公钥做 RSA 加密（2048 位，**OAEP 填充，SHA-1**）。`User.password` 的 setter 先用 `decrypt()` 校验传入的密文，然后存储 `encrypt(密文)`。登录时比较 `decrypt(客户端密文)` 与 `decrypt(decrypt(存储值))`。**两层解密都要传 `'utf8'`**，第一层漏掉会抛 `Error during decryption`。
 - 填充方式由常量 `ENCRYPTION_SCHEME = 'pkcs1_oaep'`（`core/util/util.js`）统一定义，改填充只改这一处。**前端必须用 `RSA-OAEP` + `SHA-1`**，`SHA-256` 会导致解密失败。
 
@@ -121,7 +121,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. `/api/rest` 下的 GET 请求是公开的。其他方法都需要 token。例外情况列在 `app.js` 的 `unless` 白名单中。
 
 **其他端点。** 每个都位于 `routes/` 下各自的路由文件中。
-- `/user`：获取、修改（`PUT`，需旧密码）和注销（`DELETE`，需当前密码）当前用户，使用 `req._id`。注销的级联规则较重，会删除他人在本人专栏中的文章和他人在本人文章下的评论，详见 `docs/api/other/other.md`。
+- `/user`：获取、修改（`PUT`，改密码需旧密码且会使旧 token 失效；可改 `password`/`email`/`nikname`/`avatar`）和注销（`DELETE`，需当前密码）当前用户，使用 `req._id`。注销的级联规则较重，会删除他人在本人专栏中的文章和他人在本人文章下的评论，详见 `docs/api/other/other.md`。
 - `/keys`：返回 `Key` 集合中的公钥。
 - `/upload/:classify`：`multer` 存储到 `uploads/{user|article}/`。`article` 分类返回 `{ errno, data }`，即富文本编辑器所需的格式。
 - `/articles/search`：对 `title` 和 `content` 做正则搜索。

@@ -111,6 +111,12 @@ router.delete('/:id', async (req, res, next) => {
     if (modelName === 'Article') {
       await Comment.deleteMany({ aid: id })
     }
+    // 删除专栏时级联删除其下全部文章（含他人发表的）及这些文章的评论，与注销账号的规则保持一致
+    if (modelName === 'Column') {
+      let articleIds = (await Article.find({ column: id }, '_id')).map(a => a._id)
+      await Comment.deleteMany({ aid: { $in: articleIds } })
+      await Article.deleteMany({ _id: { $in: articleIds } })
+    }
     await req.Model.findByIdAndDelete(id)
     // 清理父文档中的引用：评论从文章移除并减少 comment_num，文章从专栏移除
     if (modelName === 'Comment') {

@@ -58,8 +58,12 @@ app.use(expressJwt({
     let { _id } = token.payload
     req._id = _id
     req.isPass = true
-    let result = await User.findById(_id)
+    let result = await User.findById(_id).select('+pwdChangedAt')
     if (!result) {
+      req.isPass = false
+    } else if (result.pwdChangedAt && token.payload.iat < result.pwdChangedAt) {
+      // 修改密码后，签发于修改时间之前的 token 失效。iat 精度为秒，同一秒内签发的旧 token 有残留窗口，
+      // 但改密码后紧接着重新登录不会被误伤
       req.isPass = false
     }
     return false

@@ -45,10 +45,12 @@
 | --- | --- | --- | --- |
 | `email` | string | 否 | 新邮箱（唯一） |
 | `nikname` | string | 否 | 新昵称 |
+| `avatar` | string | 否 | 新头像 URL（一般为 `/upload/user` 返回的地址） |
 | `password` | string | 否 | 新密码，RSA 加密后的密文 |
 | `oldPassword` | string | 修改 `password` 时必填 | 旧密码，RSA 加密后的密文 |
 
 - 只提交 `password` 时，必须同时提供正确的 `oldPassword`。缺少返回 `422`（`请提供旧密码`），错误返回 `422`（`旧密码错误`）。
+- **修改密码后，此前签发的所有 token 立即失效**（之后用这些 token 访问鉴权接口会被拒绝）。前端应在修改成功后丢弃旧 token，并重新登录。
 - 白名单之外的字段会被忽略；过滤后没有任何合法字段返回 `400`（`修改失败`）。
 
 **DELETE `/user` 注销账号**

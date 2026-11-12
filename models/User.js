@@ -99,6 +99,12 @@ const schema = new mongoose.Schema({
   signature: {
     type: String,
     default: '这个人很懒, 什么都没有写 ^_^'
+  },
+
+  // 最近一次修改密码的时间（Unix 秒）。签发时间不晚于它的 JWT 视为失效，见 app.js 的 isRevoked
+  pwdChangedAt: {
+    type: Number,
+    select: false
   }
 })
 
