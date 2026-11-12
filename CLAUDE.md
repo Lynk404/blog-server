@@ -80,7 +80,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - 覆盖：文章权限、搜索/点赞白名单、注销级联、JWT 鉴权、用户资料（头像与改密码）、专栏级联删除、错误路径与校验、上传（沙箱）、数据库一致性审计。
   - 新增或修改接口后应运行；失败时输出服务日志末尾。
 - 启动前必须准备好：
-  - MongoDB，地址 `mongodb://127.0.0.1:27017/db_blog`。该地址硬编码在 `plugins/db.js`，不在 `config.js`。
+  - MongoDB，地址 `mongodb://127.0.0.1:27017/db_blog`。该地址硬编码在 `plugins/db.js`，不在 `config.js`。首次连接失败时服务打印错误并以退出码 1 结束，不会带着未连接的数据库启动。
   - 两套独立的 RSA 密钥，`auth/` 已被 gitignore，需要手动准备：
     - 密码加密密钥 `auth/public.cer`、`auth/private.cer`，**2048 位**。由 `core/util/util.js` 的 `encrypt`/`decrypt` 直接读取，没有自动生成逻辑。
     - JWT 签名密钥 `auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位。由 `core/rsaControl.js` 读取，缺失时 `app.js` 启动即崩溃。
@@ -118,7 +118,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - `POP_PUT_MAP`：定义 `revisable` 字段白名单和 `authField` 所有权检查。只有在此处列出的模型才能被更新。
    - `POPULATE_MAP`：列表和详情 GET 的关联数据填充。
    - `POP_GET_MAP`：详情 GET 的副作用。读取 Article 会使 `hit_num` 加 1。
-   - `QUE_MAP` 和 `ADMIN_CLASSIFY` 是小型查找表。`ADMIN_CLASSIFY` 目前为空。
+   - `ADMIN_CLASSIFY` 目前为空。`plugins/QUE_MAP.js` 只被 `routes/admin.js` 导入，未被使用（见"低优先级"待办）。字段中文名映射实际在 `app.js` 的 `QUE_MAP` 中。
 3. `/api/rest` 下的 GET 请求是公开的。其他方法都需要 token。例外情况列在 `app.js` 的 `unless` 白名单中。**这是设计意图**：页面展示需要未登录用户读取文章、专栏、评论和用户公开字段，用户的写操作（发布、评论、点赞、修改、删除）都要求登录。不要为了"安全"把 GET 收回鉴权。公开列表禁止 Mongo 操作符（键名以 `$` 开头返回 400），`size` 上限 100。
 4. 专栏删除和注销账号一样级联：删除专栏下的全部文章（包括他人的）及其评论。
 
@@ -126,7 +126,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `/user`：获取、修改（`PUT`，改密码需旧密码且会使旧 token 失效；可改 `password`/`email`/`nikname`/`avatar`）和注销（`DELETE`，需当前密码）当前用户，使用 `req._id`。注销的级联规则较重，会删除他人在本人专栏中的文章和他人在本人文章下的评论，详见 `docs/api/other/other.md`。
 - `/keys`：返回 `Key` 集合中的公钥。
 - `/upload/:classify`：`multer` 存储到 `uploads/{user|article}/`，只允许图片扩展名（`fileFilter`），未知分类在落盘前返回 400。`article` 分类返回 `{ errno, data }`，即富文本编辑器所需的格式。
-- `/articles/search`：对 `title` 和 `content` 做正则搜索。
+- `/articles/search`：`GET`，免鉴权，必须带 `query[q]`（缺失返回 400），对 `title` 和 `content` 做转义后的正则搜索。
 - `/articles/likes/:id`：`POST`，需登录，使 `like_num` 加 1。
 
 **模型（`models/`）。** Mongoose 8，共五个集合：`User`、`Article`、`Column`、`Comment` 和 `Key`。日期由 `core/util/util.js` 中的 `formatDate` 格式化。`Article.content` 的 setter 会执行 `decodeURIComponent`，并把 `"` 替换为 `'`。
@@ -178,7 +178,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 低优先级（待排期）
 
-- **数据库连接没有错误处理。** `plugins/db.js` 的 `mongoose.connect` 没有 `.catch`，数据库不可用时的启动表现未实测。
 - **索引缺失。** `Comment.aid`、`Article.author`、`Article.column` 没有索引，删除级联和按作者查询会全表扫描。
 - **上传的 `uid` 字段未使用。** `routes/upload.js` 要求头像上传带 `uid`，但不校验它是否等于当前用户，也不用它写库。
 - **未使用的代码。** `core/statusControl.js` 没有引用，`routes/admin.js`、`routes/search.js` 有未使用的导入，`plugins/ADMIN_CLASSIFY.js`、`plugins/DATE_FROMAT_MAP.js` 的引用情况需再确认。清理前先确认，不要顺手删。
@@ -198,8 +197,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 双层 RSA 解密每层都要传 `'utf8'`，漏掉会抛 `Error during decryption`。
 - 新增可创建的资源必须在 `plugins/RESOURCE_POST_MAP.js` 登记 `creatable` 白名单，否则 POST 直接 404。
 - `users` 没有总线写入口：注册用 `POST /admin/register`，改资料用 `PUT /user`（改密码必须带 `oldPassword`）。公开 GET 通过 `PUBLIC_VIEW` 只暴露 `nikname avatar signature`。
+- 免鉴权接口只有 `app.js` 的 `unless` 白名单一处定义。白名单用锚定正则（如 `^/api/rest/`），不要用无锚定的正则，否则路径中含该字符串的请求也会被放行。新增免鉴权接口要同时更新白名单和 `docs/api/README.md`。
+- 点赞需要登录（`POST /articles/likes/:id` 不在白名单中）。匿名读取文章、专栏、评论是设计意图，见"架构"第 3 条。
 
-测试数据：`Postman1`、`Tester01`（回归脚本会用，缺失时自动注册）。账号密码只在 `.env.local`，不要写进代码或文档。
+测试数据：`Postman1` 必须已存在；`Tester01` 缺失时回归脚本会自动注册。账号密码只在 `.env.local`，不要写进代码或文档。
 
 ## 依赖升级计划
 
