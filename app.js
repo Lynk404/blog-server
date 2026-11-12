@@ -73,13 +73,12 @@ app.use(expressJwt({
   }
 }).unless({
   path: [
-    { url: /\/api\/rest/, methods: ['GET'] },
+    { url: /^\/api\/rest\//, methods: ['GET'] },
     { url: '/api/rest/keys', methods: ['GET'] },
     { url: '/admin/login' },
     { url: '/admin/register' },
     { url: '/keys' },
     { url: /^\/articles\/search$/, methods: ['GET'] },
-    { url: /^\/articles\/likes\/[^/]+$/, methods: ['POST'] },
   ]
 }))
 

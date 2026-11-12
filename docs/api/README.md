@@ -92,9 +92,10 @@ const cipher = rsa.encrypt(password, 'base64')
 | POST | `/admin/register` |
 | GET | `/keys` |
 | GET | `/articles/search` |
-| POST | `/articles/likes/:id` |
 
 > 其余所有接口均需携带有效 Token。
+>
+> 免鉴权的 GET 是设计意图：页面展示（文章、专栏、评论列表与详情）需要未登录用户可读，只有用户操作才需要登录。`/user`、写操作以及上面列表之外的接口都需要 Token。
 
 
 ## 接口分类导航

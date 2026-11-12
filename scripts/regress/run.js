@@ -137,7 +137,9 @@ async function scenarioSearchLikes (c) {
   const col = await mkCol(c.base, c.t)
   const aid = await mkArt(c.base, c.t, col, 'rg-like')
   const before = (await getArt(c.base, aid)).like_num
-  check('点赞（无 token）→ 200', (await call(c.base, 'POST', '/articles/likes/' + aid)).status, 200)
+  check('点赞（无 token）→ 401', (await call(c.base, 'POST', '/articles/likes/' + aid)).status, 401)
+  check('未登录点赞不计数', (await getArt(c.base, aid)).like_num - before, 0)
+  check('点赞（登录）→ 200', (await call(c.base, 'POST', '/articles/likes/' + aid, c.t)).status, 200)
   check('like_num +1', (await getArt(c.base, aid)).like_num - before, 1)
   await call(c.base, 'DELETE', '/api/rest/articles/' + aid, c.t)
   await call(c.base, 'DELETE', '/api/rest/columns/' + col, c.t)
@@ -234,7 +236,7 @@ async function scenarioColumnCascade (c) {
 // 错误路径：无效 ID → 404，非法密文 → 422，中文必填/重名提示，评论不能挂到不存在的文章上
 async function scenarioErrors (c) {
   check('无效 ID 详情 → 404', (await call(c.base, 'GET', '/api/rest/articles/notanid')).status, 404)
-  check('无效 ID 点赞 → 404', (await call(c.base, 'POST', '/articles/likes/notanid')).status, 404)
+  check('无效 ID 点赞 → 404', (await call(c.base, 'POST', '/articles/likes/notanid', c.t)).status, 404)
   check('登录密文非法 → 422', (await call(c.base, 'POST', '/admin/login', null, { username: USER1.u, password: 'abc' })).status, 422)
 
   const name = 'rg-dup-' + uniq()

@@ -119,7 +119,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - `POPULATE_MAP`：列表和详情 GET 的关联数据填充。
    - `POP_GET_MAP`：详情 GET 的副作用。读取 Article 会使 `hit_num` 加 1。
    - `QUE_MAP` 和 `ADMIN_CLASSIFY` 是小型查找表。`ADMIN_CLASSIFY` 目前为空。
-3. `/api/rest` 下的 GET 请求是公开的。其他方法都需要 token。例外情况列在 `app.js` 的 `unless` 白名单中。公开列表禁止 Mongo 操作符（键名以 `$` 开头返回 400），`size` 上限 100。
+3. `/api/rest` 下的 GET 请求是公开的。其他方法都需要 token。例外情况列在 `app.js` 的 `unless` 白名单中。**这是设计意图**：页面展示需要未登录用户读取文章、专栏、评论和用户公开字段，用户的写操作（发布、评论、点赞、修改、删除）都要求登录。不要为了"安全"把 GET 收回鉴权。公开列表禁止 Mongo 操作符（键名以 `$` 开头返回 400），`size` 上限 100。
 4. 专栏删除和注销账号一样级联：删除专栏下的全部文章（包括他人的）及其评论。
 
 **其他端点。** 每个都位于 `routes/` 下各自的路由文件中。
@@ -127,7 +127,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `/keys`：返回 `Key` 集合中的公钥。
 - `/upload/:classify`：`multer` 存储到 `uploads/{user|article}/`，只允许图片扩展名（`fileFilter`），未知分类在落盘前返回 400。`article` 分类返回 `{ errno, data }`，即富文本编辑器所需的格式。
 - `/articles/search`：对 `title` 和 `content` 做正则搜索。
-- `/articles/likes/:id`：`POST`，无需鉴权，使 `like_num` 加 1。
+- `/articles/likes/:id`：`POST`，需登录，使 `like_num` 加 1。
 
 **模型（`models/`）。** Mongoose 8，共五个集合：`User`、`Article`、`Column`、`Comment` 和 `Key`。日期由 `core/util/util.js` 中的 `formatDate` 格式化。`Article.content` 的 setter 会执行 `decodeURIComponent`，并把 `"` 替换为 `'`。
 
@@ -204,6 +204,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 依赖升级计划
 
 升级流程：每个包单独升级 → 对照文档/迁移指南改代码 → 端到端回归（登录、注册、资源 CRUD、删除权限、注销级联、搜索/点赞白名单、上传）→ 同步文档。
+
+**状态（2026-11-12 核对）**：下列 14 个直接依赖均已对齐到计划版本，`npm ls` 无缺失或冲突，传递依赖 `mongodb` 驱动为 6.20.0。本计划**无未完成项**。与依赖相关的暂缓事项（mongoose 9、lockfile 镜像源、`npm audit`）见"已知问题与待办"的"暂缓"一节。
 
 **已完成**（均已通过回归）：
 - `express` 4.16.4 → 5.3.0：`res.send(status, body)` 全部改为 `res.status(status).send(body)`；`app.set('query parser', 'extended')` 保持 qs 嵌套解析；解析器后统一把 `req.body` 设为 `{}`（Express 5 无请求体时为 `undefined`）。

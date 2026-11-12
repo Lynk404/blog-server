@@ -28,7 +28,6 @@
 | 文件上传 | `multer` |
 | 错误处理 | `http-assert`、`http-errors` |
 | 命名转换 | `inflection`（复数 → 单数 Pascal 命名，用于动态加载 Model） |
-| 校验模块 | `validate`['账号格式','密码格式','长度','必填','返回语'] |
 | 开发工具 | `nodemon`（`npm start` 热更新） |
 
 ---
@@ -37,7 +36,7 @@
 
 ```text
 blog-server/
-├── auth/            # RSA 密钥文件（运行时生成）
+├── auth/            # RSA 密钥文件（需手动生成，见 CLAUDE.md，不会自动生成）
 ├── bin/             # 启动入口 (www)
 ├── core/            # 核心逻辑（工具函数、RSA 控制）
 ├── docs/
@@ -59,7 +58,7 @@ blog-server/
 
 | 字段 | 说明 |
 | --- | --- |
-| `host` / `port` | 服务监听地址与端口（默认 `127.0.0.1:3000`） |
+| `host` / `port` | 服务监听地址与端口（默认 `127.0.0.1:3000`；启动时可用 `PORT` 环境变量覆盖端口） |
 | `keyPath` | RSA 密钥目录 |
 | `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（`auth/public.cer`、`auth/private.cer`，2048 位） |
 | `jwtPubKeyPath` / `jwtPriKeyPath` | JWT 验签公钥 / 签发私钥（`auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位，需单独生成） |
@@ -72,7 +71,7 @@ blog-server/
 2. `Column`: 专栏/分类表
 3. `Article`: 文章表
 4. `Comment`: 评论表
-5. `Key`: 系统公钥/私钥存储表
+5. `Key`: 系统公钥存储表（`GET /keys` 的数据源，需用 `scripts/sync-key.js` 同步）
 
 > 数据库连接配置见 `plugins/db`。
 
@@ -82,8 +81,9 @@ blog-server/
 
 - 登录成功后返回 **JWT**，后续请求需在请求头携带：
   `Authorization: Bearer <token>`
-- **免鉴权**：`GET /api/rest/*`、`POST /admin/login`、`POST /admin/register`、`GET /keys`、`GET /articles/search`、`POST /articles/likes`
-- **需鉴权**：其余所有接口
+- **免鉴权**：`GET /api/rest/*`（列表与详情）、`POST /admin/login`、`POST /admin/register`、`GET /keys`、`GET /articles/search`，以及 `public/`、`uploads/` 下的静态文件
+- **需鉴权**：其余所有接口，包括点赞（`POST /articles/likes/:id`）、所有写操作、上传、`/user`、`/index`
+- 未登录访问任何未知路径返回 401（鉴权先于路由执行）
 - 密码通过 **RSA 非对称加密**传输（前端用公钥加密，服务端用私钥解密）
 
 详见 [API 文档 - 鉴权章节](./docs/api/README.md#鉴权)。
@@ -115,48 +115,21 @@ npm start
 ---
 
 ## 接口一览
-- 登录 login POST
-- 注册 register POST
-- 公钥获取 getPublicKey GET
-- 上传文件 upload POST
-- 鉴权 
-    访客 无登录 无鉴权
-      GET 
-        articles
-        comments
-        keys
-        cloumns
-        search 
-      POST 
-        comments
-        admin/regiseter
 
-    用户 登录 鉴权
-      GET
-        articles 
-        comments
-        cloumns
-        keys
-        search
-      POST
-        articles 
-        comments
-        cloumns 
-        upload 
-    
-      JWT 需要验证token的api
-        POST 
-          articles
-          cloumns
-          upload
-        PUT
-          articles
-          cloumns
-          userInfo
-        DELETE
-          articles
-          cloumns
-          userInfo
+完整说明见 [API 文档](./docs/api/README.md)。
+
+| 类别 | 接口 | 是否需要登录（token） |
+| --- | --- | --- |
+| 认证 | `POST /admin/login`、`POST /admin/register` | 否 |
+| 公钥 | `GET /keys` | 否 |
+| 公开读取 | `GET /api/rest/{articles,columns,comments,users}`（列表与详情） | 否 |
+| 搜索 | `GET /articles/search`（需带 `query[q]`） | 否 |
+| 点赞 | `POST /articles/likes/:id` | 是 |
+| 写入 | `POST /api/rest/{articles,columns,comments}`，以及作者本人的 `PUT` / `DELETE` | 是 |
+| 用户 | `GET /user`、`PUT /user`、`DELETE /user` | 是 |
+| 上传 | `POST /upload/:classify`（只允许图片） | 是 |
+| 校验 | `GET /index` | 是 |
+
 
 ---
 
