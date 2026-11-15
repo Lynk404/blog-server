@@ -103,6 +103,10 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// 手动测试加密用
+// console.log('encrypt: Lin45678')
+// console.log(encrypt('Lin45678'))
+
 module.exports = {
   encrypt,
   decrypt,
