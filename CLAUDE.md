@@ -144,9 +144,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 服务端已于 2026-11 从 PKCS#1 v1.5 切换到 OAEP（`ENCRYPTION_SCHEME = 'pkcs1_oaep'`，摘要 SHA-1），存量密文已用 `scripts/migrate-oaep.js` 重加密。
 
-前端尚未同步改造。在它发版之前，旧客户端提交的 pkcs1 密文会被服务端拒绝，登录和注册全部失败。前端改法（WebCrypto 与 node-rsa 两种写法）已写在 `docs/api/README.md` 的"安全说明（密码传输）"，关键是 `hash: 'SHA-1'`，用 `SHA-256` 同样会失败。
+前端 `blog-web` 已同步改为 OAEP + SHA-1（`src/utils/encrypt.ts`）。旧客户端若仍提交 pkcs1 密文，会被服务端拒绝，登录和注册失败。前端改法（WebCrypto 与 node-rsa 两种写法）见 `docs/api/api.md` 的"安全说明（密码传输）"，关键是 `hash: 'SHA-1'`，用 `SHA-256` 同样会失败。
 
-> 本地开发用回归脚本验证，脚本已同步改为 OAEP；只有真实前端还停在旧填充。
+> 本地开发用回归脚本验证，脚本与前端均已使用 OAEP。
 
 
 **2. CORS 允许任意来源并携带凭据**
@@ -198,7 +198,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 双层 RSA 解密每层都要传 `'utf8'`，漏掉会抛 `Error during decryption`。
 - 新增可创建的资源必须在 `plugins/RESOURCE_POST_MAP.js` 登记 `creatable` 白名单，否则 POST 直接 404。
 - `users` 没有总线写入口：注册用 `POST /admin/register`，改资料用 `PUT /user`（改密码必须带 `oldPassword`）。公开 GET 通过 `PUBLIC_VIEW` 只暴露 `nikname avatar signature`。
-- 免鉴权接口只有 `app.js` 的 `unless` 白名单一处定义。白名单用锚定正则（如 `^/api/rest/`），不要用无锚定的正则，否则路径中含该字符串的请求也会被放行。新增免鉴权接口要同时更新白名单和 `docs/api/README.md`。
+- 免鉴权接口只有 `app.js` 的 `unless` 白名单一处定义。白名单用锚定正则（如 `^/api/rest/`），不要用无锚定的正则，否则路径中含该字符串的请求也会被放行。新增免鉴权接口要同时更新白名单和 `docs/api/api.md`。
 - 点赞需要登录（`POST /articles/likes/:id` 不在白名单中）。匿名读取文章、专栏、评论是设计意图，见"架构"第 3 条。
 
 测试数据：`Postman1` 必须已存在；`Tester01` 缺失时回归脚本会自动注册。账号密码只在 `.env.local`，不要写进代码或文档。
