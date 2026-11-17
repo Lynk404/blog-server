@@ -11,5 +11,5 @@ module.exports = {
   jwtPriKeyPath: path.join(process.cwd(), '/auth/jwt-private.pem'),
   uploadPath: path.join(process.cwd(), '/uploads'),
   uploadURL: 'http://127.0.0.1:3000/',
-  maxFileSize: 102400
+  maxFileSize: 2 * 1024 * 1024
 }

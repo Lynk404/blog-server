@@ -63,7 +63,7 @@ blog-server/
 | `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（`auth/public.cer`、`auth/private.cer`，2048 位） |
 | `jwtPubKeyPath` / `jwtPriKeyPath` | JWT 验签公钥 / 签发私钥（`auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位，需单独生成） |
 | `uploadPath` / `uploadURL` | 上传文件存储目录与对外访问前缀 |
-| `maxFileSize` | 单文件最大字节数（默认 102400，约 100KB） |
+| `maxFileSize` | 单文件最大字节数（默认 2097152，2MB） |
 
 ## 📂 核心数据模型
 项目包含 5 个核心数据集合（详见 [数据库设计文档](./docs/db/README.md)）：

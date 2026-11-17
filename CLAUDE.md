@@ -132,7 +132,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **模型（`models/`）。** Mongoose 8，共五个集合：`User`、`Article`、`Column`、`Comment` 和 `Key`。日期由 `core/util/util.js` 中的 `formatDate` 格式化。`Article.content` 的 setter 会执行 `decodeURIComponent`，并把 `"` 替换为 `'`。
 
-**配置。** `config.js` 设置监听地址、端口、密钥路径、上传路径和 URL，以及最大上传大小（100 KB）。`uploadURL` 硬编码为 `http://127.0.0.1:3000/`。
+**配置。** `config.js` 设置监听地址、端口、密钥路径、上传路径和 URL，以及最大上传大小（2 MB）。`uploadURL` 硬编码为 `http://127.0.0.1:3000/`。
 
 ## 已知问题与待办
 
