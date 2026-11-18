@@ -18,12 +18,11 @@ const path = require('path')
 const os = require('os')
 const NodeRSA = require('node-rsa').default
 const mongoose = require('mongoose')
-const { dbURL } = require('../config')
+const { dbURL, pubKeyPath, priKeyPath } = require('../config')
 
-const ROOT = path.resolve(__dirname, '..')
 const DRY = process.argv.includes('--dry')
-const PUB = path.join(ROOT, 'auth/public.cer')
-const PRI = path.join(ROOT, 'auth/private.cer')
+const PUB = pubKeyPath
+const PRI = priKeyPath
 
 const OLD_SCHEME = 'pkcs1'
 const NEW_SCHEME = 'pkcs1_oaep'

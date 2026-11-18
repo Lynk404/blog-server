@@ -1,5 +1,5 @@
 /*
- * 把 auth/public.cer 同步到 Key 集合，供 GET /keys 返回给前端。
+ * 把 config.pubKeyPath 指向的公钥同步到 Key 集合，供 GET /keys 返回给前端。
  *
  *   node scripts/sync-key.js          同步
  *
@@ -9,16 +9,12 @@
  * 做法：清空 Key 集合后插入一条当前公钥，保证有且只有一条。
  */
 const fs = require('fs')
-const path = require('path')
 const mongoose = require('mongoose')
-const { dbURL } = require('../config')
-
-const ROOT = path.resolve(__dirname, '..')
-const PUB = path.join(ROOT, 'auth/public.cer')
+const { dbURL, pubKeyPath } = require('../config')
 
 async function main () {
-  const content = fs.readFileSync(PUB, 'utf8')
-  if (!content.includes('BEGIN PUBLIC KEY')) throw new Error('auth/public.cer 不是有效的 PEM 公钥')
+  const content = fs.readFileSync(pubKeyPath, 'utf8')
+  if (!content.includes('BEGIN PUBLIC KEY')) throw new Error(`${pubKeyPath} 不是有效的 PEM 公钥`)
 
   await mongoose.connect(dbURL)
   const db = mongoose.connection.db

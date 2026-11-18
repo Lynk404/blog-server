@@ -51,6 +51,7 @@ MongoDB（127.0.0.1:27017/db_blog）
 | `uploadURL` | 图片对外根地址，必须改成 `https://实际域名/` |
 | `dbURL` | MongoDB 地址；服务、密钥脚本、迁移脚本、回归脚本都读取这里 |
 | `host` / `port` | Node 监听地址与端口，`bin/www` 使用 |
+| `keyPath` | 密钥目录；四把密钥路径由它派生，可用 `KEY_PATH` 覆盖 |
 | `uploadPath` | 上传目录；可改为发布目录之外的绝对路径 |
 | `legacyUploadURL` | 旧图片地址，仅 `scripts/update-image-urls.js` 使用 |
 | `corsOrigins` | CORS 来源；开发为 `true`，上线建议改为 `['https://实际域名']` |
@@ -63,11 +64,12 @@ module.exports = {
   host: '127.0.0.1',                 // 只经 Nginx 暴露
   port: 3000,
   dbURL: 'mongodb://127.0.0.1:27017/db_blog',
+  keyPath: '/var/www/yesforum/server/auth',
   uploadPath: '/var/www/yesforum/uploads',
   uploadURL: 'https://forum.example.com/',
   legacyUploadURL: 'http://127.0.0.1:3000/',
   corsOrigins: ['https://forum.example.com'],
-  // 其余密钥路径、maxFileSize 保持原值
+  // maxFileSize 保持原值；四把密钥路径由 keyPath 自动派生
 }
 ```
 
@@ -109,16 +111,16 @@ node scripts/update-image-urls.js --apply --unset-default-covers
 
 ### 2.3 `uploads/` 持久化
 
-`config.js` 的 `uploadPath` 默认是 `path.join(process.cwd(), '/uploads')`，`keyPath` 和 JWT/密码密钥路径同样基于 `process.cwd()`。推荐直接在 `config.js` 改成发布目录之外的绝对路径：
+`config.js` 的 `uploadPath` 默认是 `path.join(process.cwd(), '/uploads')`；`keyPath` 默认是 `path.join(process.cwd(), '/auth')`，四把密钥路径由它派生。推荐直接在 `config.js` 改成发布目录之外的绝对路径：
 
 ```js
 uploadPath: '/var/www/yesforum/uploads',
-// 如果 auth/ 也放在发布目录之外，同时把 keyPath 等改成绝对路径
+keyPath: '/var/www/yesforum/server/auth',
 ```
 
 - 这样可以避免软链接；Nginx 的图片 `root` 指向同一个目录即可。
 - 如果保留默认相对路径，**必须从 `blog-server` 目录启动服务**，否则 `auth/` 和 `uploads/` 会写错位置。
-- Docker 需要把 `config.uploadPath` 对应的路径挂到持久 volume，同时把 `auth/` 挂出来，否则重建容器会丢密钥和图片。
+- Docker 需要把 `config.uploadPath`、`config.keyPath` 对应的目录挂到持久 volume，否则重建容器会丢密钥和图片。
 - `uploads/` 需要 Node 进程可写；如果 Nginx 直接读图片，Nginx 用户也要可读。
 - **不要在服务器工作目录执行 `git clean -fd`**：新上传的图片是未跟踪文件，会被直接删除。
 
@@ -219,9 +221,10 @@ npm run build
 
 **密钥**
 
-- `auth/` 下需要四个文件：`public.cer`、`private.cer`、`jwt-public.pem`、`jwt-private.pem`。
+- `config.keyPath` 下需要四个文件：`public.cer`、`private.cer`、`jwt-public.pem`、`jwt-private.pem`；默认是 `auth/`，四把密钥路径由 `keyPath` 派生。
+- `sync-key.js` 和两个密钥迁移脚本都读取 config 的密钥路径，因此只改 `keyPath` 即可整体移动密钥目录。
 - 新环境按 `README.md` 的命令生成，然后执行 `node scripts/sync-key.js`。
-- `auth/` 被 `.gitignore` 忽略，不会随代码发布；需要单独备份和迁移。
+- 默认的 `auth/` 被 `.gitignore` 忽略，不会随代码发布；自定义 `keyPath` 时也要确保目录不进入 Git，并单独备份。
 - 不要在生产环境重新生成密码密钥，否则存量用户密码全部失效。
 
 **MongoDB**
@@ -313,7 +316,7 @@ tar xzf /var/backups/uploads-YYYY-MM-DD.tar.gz -C /var/www/yesforum
 
 - [ ] 域名解析到服务器，HTTPS 证书可用
 - [ ] `config.js` 的 `uploadURL` 是 `https://实际域名/`
-- [ ] `config.js` 的 `dbURL`、`host`/`port`、`corsOrigins` 已按线上环境填写
+- [ ] `config.js` 的 `dbURL`、`host`/`port`、`corsOrigins`、`keyPath`、`uploadPath` 已按线上环境填写
 - [ ] 新用户无默认头像、新文章无默认封面，头像显示昵称首字、封面区域不渲染
 - [ ] 历史 `Article.cover` / `User.avatar` 已替换，或确认使用全新数据库
 - [ ] 旧默认封面是否清空已确认（`--unset-default-covers`）

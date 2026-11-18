@@ -61,15 +61,15 @@ blog-server/
 | --- | --- |
 | `host` / `port` | 监听地址与端口，`bin/www` 使用；默认 `0.0.0.0:3000`，可用 `HOST`/`PORT` 覆盖 |
 | `dbURL` | MongoDB 地址；服务、密钥脚本、迁移脚本、回归脚本统一读取，可用 `MONGODB_URI` 覆盖 |
-| `keyPath` | RSA 密钥目录 |
-| `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（`auth/public.cer`、`auth/private.cer`，2048 位） |
-| `jwtPubKeyPath` / `jwtPriKeyPath` | JWT 验签公钥 / 签发私钥（`auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位，需单独生成） |
+| `keyPath` | RSA 密钥目录；四把密钥路径都由它派生，可用 `KEY_PATH` 覆盖 |
+| `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（由 `keyPath` 派生：`public.cer`、`private.cer`，2048 位） |
+| `jwtPubKeyPath` / `jwtPriKeyPath` | JWT 验签公钥 / 签发私钥（由 `keyPath` 派生：`jwt-public.pem`、`jwt-private.pem`，2048 位，需单独生成） |
 | `uploadPath` / `uploadURL` | 上传文件存储目录与图片对外根地址 |
 | `legacyUploadURL` | 旧图片地址，仅供 `scripts/update-image-urls.js` 迁移历史数据 |
 | `corsOrigins` | CORS 来源；开发默认 `true`，上线建议改为前端域名数组 |
 | `maxFileSize` | 单文件最大字节数（默认 2097152，2MB） |
 
-> 应用侧上线配置集中在本文件：`uploadURL` 会被写入 `Article.cover` / `User.avatar`，生产必须改成公网 HTTPS 根地址（如 `https://forum.example.com/`）；`dbURL` 改动后所有脚本同步生效。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面，新用户和新文章不再写入默认图片。`uploadPath` 默认基于 `process.cwd()`，可在 `config.js` 改成发布目录外的绝对路径；保留默认值时服务必须从后端根目录启动。完整上线步骤见 [部署与上线准备](./docs/deployment.md)。
+> 应用侧上线配置集中在本文件：`uploadURL` 会被写入 `Article.cover` / `User.avatar`，生产必须改成公网 HTTPS 根地址（如 `https://forum.example.com/`）；`dbURL` 改动后所有脚本同步生效；`keyPath` 一处控制四把密钥。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面，新用户和新文章不再写入默认图片。`uploadPath`、`keyPath` 默认基于 `process.cwd()`，可在 `config.js` 改成发布目录外的绝对路径；保留默认值时服务必须从后端根目录启动。完整上线步骤见 [部署与上线准备](./docs/deployment.md)。
 
 ## 📂 核心数据模型
 项目包含 5 个核心数据集合（详见 [数据库设计文档](./docs/db/README.md)）：

@@ -2,18 +2,20 @@ const path = require("path")
 
 // 应用侧部署配置集中在本文件。生产环境可通过同名环境变量覆盖，但默认值应在这里维护。
 const port = process.env.PORT || 3000
+// 四把密钥统一放在 keyPath 下；只改这一项即可整体移动密钥目录
+const keyPath = process.env.KEY_PATH || path.join(process.cwd(), '/auth')
 
 module.exports = {
   // 监听所有网卡，保持本地与 Docker 的默认行为；只经 Nginx 暴露时可改为 127.0.0.1
   host: process.env.HOST || '0.0.0.0',
   root: process.cwd(),
   port,
-  keyPath: path.join(process.cwd(), '/auth'),
-  pubKeyPath: path.join(process.cwd(), '/auth/public.cer'),
-  priKeyPath: path.join(process.cwd(), '/auth/private.cer'),
+  keyPath,
+  pubKeyPath: path.join(keyPath, 'public.cer'),
+  priKeyPath: path.join(keyPath, 'private.cer'),
   // JWT 专用 2048 位密钥对，与密码加密密钥（上面两项）分离
-  jwtPubKeyPath: path.join(process.cwd(), '/auth/jwt-public.pem'),
-  jwtPriKeyPath: path.join(process.cwd(), '/auth/jwt-private.pem'),
+  jwtPubKeyPath: path.join(keyPath, 'jwt-public.pem'),
+  jwtPriKeyPath: path.join(keyPath, 'jwt-private.pem'),
   // 数据库地址；运维脚本和回归脚本也读取这里
   dbURL: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/db_blog',
   // 上传目录；部署时可改成发布目录之外的持久路径

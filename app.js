@@ -8,7 +8,7 @@ const cors = require('cors')
 const mongoose = require('./plugins/db') // 连接db
 const assert = require('http-assert')
 const User = require('./models/User')
-const { maxFileSize, corsOrigins } = require('./config')
+const { maxFileSize, corsOrigins, uploadPath } = require('./config')
 const { expressjwt: expressJwt } = require('express-jwt')
 const { getJwtPublicKeySync } = require('./core/rsaControl')
 
@@ -38,7 +38,8 @@ app.use((req, res, next) => {
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 // nosniff：禁止浏览器按内容猜测类型，上传目录中的文件不会被当作脚本执行
-app.use(express.static(path.join(__dirname, 'uploads'), {
+// 使用 config.uploadPath，确保上传目录整体移动时静态服务同步生效
+app.use(express.static(uploadPath, {
   setHeaders: res => res.setHeader('X-Content-Type-Options', 'nosniff')
 }));
 //中间件  nameMiddleware

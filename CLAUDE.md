@@ -80,10 +80,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - 覆盖：文章权限、搜索/点赞白名单、注销级联、JWT 鉴权（含修改密码与注销后的旧 token 在各写入口返回 401）、用户资料（头像与改密码）、专栏级联删除、错误路径与校验、上传（沙箱）、数据库一致性审计。
   - 新增或修改接口后应运行；失败时输出服务日志末尾。
 - 启动前必须准备好：
-  - MongoDB，地址 `mongodb://127.0.0.1:27017/db_blog`。该地址硬编码在 `plugins/db.js`，不在 `config.js`。首次连接失败时服务打印错误并以退出码 1 结束，不会带着未连接的数据库启动。
-  - 两套独立的 RSA 密钥，`auth/` 已被 gitignore，需要手动准备：
-    - 密码加密密钥 `auth/public.cer`、`auth/private.cer`，**2048 位**。由 `core/util/util.js` 的 `encrypt`/`decrypt` 直接读取，没有自动生成逻辑。
-    - JWT 签名密钥 `auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位。由 `core/rsaControl.js` 读取，缺失时 `app.js` 启动即崩溃。
+  - MongoDB，地址来自 `config.dbURL`（默认 `mongodb://127.0.0.1:27017/db_blog`）。首次连接失败时服务打印错误并以退出码 1 结束，不会带着未连接的数据库启动。
+  - 两套独立的 RSA 密钥，默认放在 `config.keyPath`（`auth/`）下，该目录已被 gitignore，需要手动准备：
+    - 密码加密密钥 `config.pubKeyPath`、`config.priKeyPath`（默认 `auth/public.cer`、`auth/private.cer`），**2048 位**。由 `core/util/util.js` 的 `encrypt`/`decrypt` 直接读取，没有自动生成逻辑。
+    - JWT 签名密钥 `config.jwtPubKeyPath`、`config.jwtPriKeyPath`（默认 `auth/jwt-public.pem`、`auth/jwt-private.pem`），2048 位。由 `core/rsaControl.js` 读取，缺失时 `app.js` 启动即崩溃。
     - **两套密钥都不会自动生成或覆盖**，文件缺失时直接抛错。生成命令见下。
 - JWT 密钥生成（仅在文件不存在时生成，`wx` 标志防止覆盖）：
   ```
@@ -97,14 +97,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   生成后必须跑 `node scripts/sync-key.js` 同步 `Key` 集合，否则前端拿到的公钥不匹配。
 - 密码密钥轮换用 `node scripts/migrate-keys-2048.js`（支持 `--dry` 预演）：备份 → 生成新密钥 → 重加密存量用户 → 同步 `Key` 集合。**换密钥必须同时更新 `Key` 集合**，否则前端拿到的公钥与服务端私钥不匹配。
 - 填充方式迁移用 `node scripts/migrate-oaep.js`（支持 `--dry` 预演）：旧填充解两层 → 新填充双层加密 → 写回。切换到旧填充的数据库备份后必须跑一次，否则存量用户无法登录。
-- 公钥同步：`node scripts/sync-key.js`，把 `auth/public.cer` 写入 `Key` 集合（清空后插入一条）。`GET /keys` 返回第一条 `Key` 文档的 `content`，代码中没有任何地方写入它，集合为空时返回 404。换密钥后忘了跑会导致前端公钥不匹配、所有登录失败。
+- 公钥同步：`node scripts/sync-key.js`，把 `config.pubKeyPath` 指向的公钥写入 `Key` 集合（清空后插入一条）。`GET /keys` 返回第一条 `Key` 文档的 `content`，代码中没有任何地方写入它，集合为空时返回 404。换密钥后忘了跑会导致前端公钥不匹配、所有登录失败。
+- 上面的生成命令按默认 `auth/` 编写；如果 `config.keyPath` 改了，把命令里的路径同步换成新目录（四个密钥文件都由 `keyPath` 派生）。
 
 ## 架构
 
 **请求管线（`app.js`）。** 中间件按以下顺序执行：CORS、morgan、JSON 和 urlencoded 解析器（`limit: '2mb'`；正文在客户端经过 `encodeURIComponent`，中文约占 9 倍，旧的 100 KB 默认值约 1.1 万汉字即返回 413）、cookie-parser、`public/` 和 `uploads/` 的静态文件服务（`uploads/` 带 `nosniff`），然后是 `express-jwt`（RS256，用公钥验证，带有 `unless` 白名单）。之后是路由，最底部是统一的错误处理器，它把错误规范化为 `{ code, message }`；413 文案统一为「请求内容过大」。成功响应的格式为 `{ message, data }`。
 
 **鉴权。**
-- `routes/admin.js` 处理 `POST /admin/login` 和 `POST /admin/register`。`core/sendToken.js` 用 `auth/jwt-private.pem` 签发 RS256 JWT，`app.js` 的 `express-jwt` 用 `auth/jwt-public.pem` 验签（`core/rsaControl.js` 的 `getJwtPublicKeySync` / `getJwtPrivateKey`）。载荷为 `{ username, _id }`，有效期 3 天。JWT 密钥与密码密钥分离后，此前的 token 全部失效。
+- `routes/admin.js` 处理 `POST /admin/login` 和 `POST /admin/register`。`core/sendToken.js` 用 `config.jwtPriKeyPath` 签发 RS256 JWT，`app.js` 的 `express-jwt` 用 `config.jwtPubKeyPath` 验签（`core/rsaControl.js` 的 `getJwtPublicKeySync` / `getJwtPrivateKey`）。载荷为 `{ username, _id }`，有效期 3 天。JWT 密钥与密码密钥分离后，此前的 token 全部失效。
 - `express-jwt` 的 `isRevoked` 钩子会在每个已鉴权请求上执行 `User.findById`。它设置 `req._id` 和 `req.isPass`，但从不拒绝请求。每个处理器必须自己检查 `req.isPass`。签发时间（`iat`，秒）早于 `User.pwdChangedAt` 的 token 同样置为 `isPass = false`，改密码时由 `PUT /user` 写入该字段。
 - 未登录访问任何路径（包括不存在的路径）都返回 401，因为鉴权先于路由执行。
 - **所有需要登录的写入口都必须检查 `req.isPass`**（`express-jwt` 的 `isRevoked` 对修改密码后的旧 token、已注销账号的 token 置为 `false`，但从不拒绝）。当前已覆盖：`bus.js` 的 POST、PUT、DELETE，`routes/user.js`，`routes/artLikes.js`，`routes/upload.js`（检查放在 multer 之前，避免先写盘）。新增写入口时必须同样检查，并在回归中加入旧 token 用例。
@@ -132,7 +133,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **模型（`models/`）。** Mongoose 8，共五个集合：`User`、`Article`、`Column`、`Comment` 和 `Key`。日期由 `core/util/util.js` 中的 `formatDate` 格式化。`Article.content` 的 setter 会执行 `decodeURIComponent`，并把 `"` 替换为 `'`。
 
-**配置。** `config.js` 是应用侧部署配置的唯一入口：监听地址/端口（`host`/`port`）、数据库（`dbURL`）、密钥路径、上传目录（`uploadPath`）、图片对外地址（`uploadURL`）、旧地址（`legacyUploadURL`）、CORS 来源（`corsOrigins`）与最大上传大小（2 MB）。`PUBLIC_URL`、`MONGODB_URI`、`UPLOAD_PATH`、`HOST`、`PORT` 可覆盖默认值。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面；头像缺失时前端显示昵称首字，封面缺失时不渲染封面区域。
+**配置。** `config.js` 是应用侧部署配置的唯一入口：监听地址/端口（`host`/`port`）、数据库（`dbURL`）、密钥目录（`keyPath`，四把密钥路径都由它派生）、上传目录（`uploadPath`）、图片对外地址（`uploadURL`）、旧地址（`legacyUploadURL`）、CORS 来源（`corsOrigins`）与最大上传大小（2 MB）。`PUBLIC_URL`、`MONGODB_URI`、`KEY_PATH`、`UPLOAD_PATH`、`HOST`、`PORT` 可覆盖默认值。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面；头像缺失时前端显示昵称首字，封面缺失时不渲染封面区域。
 
 ## 已知问题与待办
 
@@ -197,7 +198,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 修改流程：**先给方案 → 用户确认 → 按批次实施 → 每批跑回归 → 同步 `docs/`**。
 
-**上线前检查**：完成"已知问题与待办"中"上线前必须处理"的三项（OAEP 前端改造、CORS 白名单、部署硬编码），并确认 `Key` 集合已同步。
+**上线前检查**：完成"已知问题与待办"中"上线前必须处理"的三项（OAEP 前端改造、CORS 白名单、部署配置），并确认 `Key` 集合已同步。
 
 几个容易踩的点（细节见"架构"）：
 
