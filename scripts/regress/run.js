@@ -29,7 +29,7 @@ const env = Object.fromEntries(
 )
 const USER1 = { u: env.TEST_USER_1_USERNAME, p: env.TEST_USER_1_PASSWORD } // Postman1，数据库已有
 const USER2 = { u: env.TEST_USER_2_USERNAME, p: env.TEST_USER_2_PASSWORD } // Tester01，持久测试用户
-const MONGO_URI = 'mongodb://127.0.0.1:27017/db_blog'
+const { dbURL } = require('../../config')
 
 const pub = new NodeRSA(fs.readFileSync(path.join(ROOT, 'auth/public.cer'), 'utf8'))
 // 与 core/util/util.js 的 ENCRYPTION_SCHEME 保持一致（OAEP，SHA-1）
@@ -169,7 +169,7 @@ async function scenarioCancel (c) {
   const ghostCol = await call(c.base, 'POST', '/api/rest/columns', C, { name: 'rg-gone-' + uniq() })
   check('注销后旧 token 创建专栏 → 401', ghostCol.status, 401)
   // 若修复前写入成功，清掉指向已注销用户的孤儿专栏，避免残留
-  await mongoose.connect(MONGO_URI)
+  await mongoose.connect(dbURL)
   await mongoose.connection.db.collection('columns').deleteMany({ uid: new mongoose.Types.ObjectId(cid) })
   await mongoose.disconnect()
   check('注销后 GET /user → 401（不再 500）', (await call(c.base, 'GET', '/user', C)).status, 401)
@@ -233,7 +233,7 @@ async function scenarioColumnCascade (c) {
   const own = await mkArt(c.base, O.tok, col, 'rg-casc-own')
   // 他人文章挂在 O 的专栏下：API 已禁止（403），这里直接写库制造存量数据，验证级联逻辑仍覆盖它
   const tid = JSON.parse(Buffer.from(c.t.split('.')[1], 'base64url').toString())._id
-  await mongoose.connect(MONGO_URI)
+  await mongoose.connect(dbURL)
   const othersId = new mongoose.Types.ObjectId()
   await mongoose.connection.db.collection('articles').insertOne({ _id: othersId, title: 'rg-casc-other', content: 'c', cover: '', date: new Date(), hit_num: 0, comment_num: 0, like_num: 0, comments: [], author: new mongoose.Types.ObjectId(tid), column: new mongoose.Types.ObjectId(col) })
   await mongoose.connection.db.collection('columns').updateOne({ _id: new mongoose.Types.ObjectId(col) }, { $push: { aids: othersId } })
@@ -319,7 +319,7 @@ async function scenarioUpload (dir, t) {
     }
     check('上传图片 → 200', await up(t, Buffer.from('hi'), 'a.png'), 200)
     check('上传非图片 → 422', await up(t, Buffer.from('hi'), 'x.html'), 422)
-    check('上传超限图片 → 422', await up(t, Buffer.alloc(200 * 1024, 97), 'b.png'), 422)
+    check('上传超限图片 → 422', await up(t, Buffer.alloc(2 * 1024 * 1024 + 1, 97), 'b.png'), 422)
     check('未知分类 → 400', (await fetch(`${srv.base}/upload/bogus`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: (() => { const fd = new FormData(); fd.append('file', new Blob([Buffer.from('hi')]), 'c.png'); return fd })() })).status, 400)
     check('上传无 token → 401', await up(null, Buffer.from('x'), 'c.txt'), 401)
 
@@ -357,7 +357,7 @@ function prepareSandbox () {
 }
 
 async function audit () {
-  await mongoose.connect(MONGO_URI)
+  await mongoose.connect(dbURL)
   const db = mongoose.connection.db
   const arts = await db.collection('articles').find({}).toArray()
   const cms = await db.collection('comments').find({}).toArray()

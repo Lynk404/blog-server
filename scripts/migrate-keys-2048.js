@@ -18,10 +18,10 @@ const os = require('os')
 const crypto = require('crypto')
 const NodeRSA = require('node-rsa').default
 const mongoose = require('mongoose')
+const { dbURL } = require('../config')
 
 const ROOT = path.resolve(__dirname, '..')
 const DRY = process.argv.includes('--dry')
-const MONGO_URI = 'mongodb://127.0.0.1:27017/db_blog'
 const PUB = path.join(ROOT, 'auth/public.cer')
 const PRI = path.join(ROOT, 'auth/private.cer')
 
@@ -40,7 +40,7 @@ async function main () {
   const oldPri = fs.readFileSync(PRI, 'utf8')
   console.log('旧密钥位数:', rsa(oldPub).getKeySize())
 
-  await mongoose.connect(MONGO_URI)
+  await mongoose.connect(dbURL)
   const db = mongoose.connection.db
   const users = await db.collection('users').find({}).project({ username: 1, password: 1 }).toArray()
   console.log('待迁移用户数:', users.length)

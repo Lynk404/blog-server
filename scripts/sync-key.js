@@ -11,16 +11,16 @@
 const fs = require('fs')
 const path = require('path')
 const mongoose = require('mongoose')
+const { dbURL } = require('../config')
 
 const ROOT = path.resolve(__dirname, '..')
-const MONGO_URI = 'mongodb://127.0.0.1:27017/db_blog'
 const PUB = path.join(ROOT, 'auth/public.cer')
 
 async function main () {
   const content = fs.readFileSync(PUB, 'utf8')
   if (!content.includes('BEGIN PUBLIC KEY')) throw new Error('auth/public.cer 不是有效的 PEM 公钥')
 
-  await mongoose.connect(MONGO_URI)
+  await mongoose.connect(dbURL)
   const db = mongoose.connection.db
 
   const { deletedCount } = await db.collection('keys').deleteMany({})

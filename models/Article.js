@@ -1,5 +1,4 @@
 const mongoose = require('mongoose')
-const { uploadURL } = require('../config')
 const { formatDate } = require('../core/util/util')
 const schema = new mongoose.Schema({
   title: {
@@ -7,10 +6,9 @@ const schema = new mongoose.Schema({
     required: [true, '标题必填'],
     default: "默认标题" + new Date().toDateString()
   },
-  //封面图
+  //封面图；没有默认值，未上传时前端显示占位图
   cover: {
-    type: String, //URL
-    default: `${uploadURL}article/article-cover.jpg`
+    type: String //URL
   },
   //文章内容
   content: {

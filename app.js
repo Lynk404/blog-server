@@ -8,7 +8,7 @@ const cors = require('cors')
 const mongoose = require('./plugins/db') // 连接db
 const assert = require('http-assert')
 const User = require('./models/User')
-const { maxFileSize } = require('./config')
+const { maxFileSize, corsOrigins } = require('./config')
 const { expressjwt: expressJwt } = require('express-jwt')
 const { getJwtPublicKeySync } = require('./core/rsaControl')
 
@@ -17,7 +17,7 @@ const app = express();
 app.set('query parser', 'extended');
 
 app.use(cors({
-  "origin": true, //true 设置为 req.origin.url
+  "origin": corsOrigins, //默认 true 反射请求来源；上线可在 config.js 改为域名数组
   "methods": "GET,HEAD,PUT,PATCH,POST,DELETE", //容许跨域的请求方式
   "allowedHeaders": "x-requested-with,Authorization,token, content-type", //跨域请求头
   "preflightContinue": false, // 是否通过next() 传递options请求 给后续中间件 

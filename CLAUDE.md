@@ -132,7 +132,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **模型（`models/`）。** Mongoose 8，共五个集合：`User`、`Article`、`Column`、`Comment` 和 `Key`。日期由 `core/util/util.js` 中的 `formatDate` 格式化。`Article.content` 的 setter 会执行 `decodeURIComponent`，并把 `"` 替换为 `'`。
 
-**配置。** `config.js` 设置监听地址、端口、密钥路径、上传路径和 URL，以及最大上传大小（2 MB）。`uploadURL` 硬编码为 `http://127.0.0.1:3000/`。
+**配置。** `config.js` 是应用侧部署配置的唯一入口：监听地址/端口（`host`/`port`）、数据库（`dbURL`）、密钥路径、上传目录（`uploadPath`）、图片对外地址（`uploadURL`）、旧地址（`legacyUploadURL`）、CORS 来源（`corsOrigins`）与最大上传大小（2 MB）。`PUBLIC_URL`、`MONGODB_URI`、`UPLOAD_PATH`、`HOST`、`PORT` 可覆盖默认值。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面；头像缺失时前端显示昵称首字，封面缺失时不渲染封面区域。
 
 ## 已知问题与待办
 
@@ -151,18 +151,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **2. CORS 允许任意来源并携带凭据**
 
-`app.js` 中 `origin: true` 加 `credentials: true`，任意站点都能跨域携带凭据请求后端。前端目前仍在本地开发，暂不改动。上线前改为白名单（如环境变量 `CORS_ORIGINS`），并在回归中验证白名单内外的行为。鉴权走 `Authorization` 头而非 cookie，CSRF 风险有限，但配置本身不合理。
+`app.js` 使用 `config.corsOrigins`，默认 `true`（反射任意来源）加 `credentials: true`。前端目前仍在本地开发；上线前在 `config.js` 把 `corsOrigins` 改成前端域名数组，并在回归中验证白名单内外的行为。鉴权走 `Authorization` 头而非 cookie，CSRF 风险有限，但配置本身不合理。
 
-**3. 部署前必须改的硬编码**
+**3. 部署前必须调整的配置**
 
-以下地址写死在代码里，只在本地可用：
+应用侧只改 `config.js`：
 
-| 位置 | 值 | 影响 |
+| 配置 | 默认值 | 上线影响 |
 | --- | --- | --- |
-| `config.js` → `uploadURL` | `http://127.0.0.1:3000/` | 上传接口返回的图片 URL 指向本机，部署后前端拿到的地址打不开 |
-| `plugins/db.js` | `mongodb://127.0.0.1:27017/db_blog` | 数据库地址，不在 `config.js` 里 |
-| `models/User.js` → 头像 `default` | `http://127.0.0.1:3000/images/avatar.png` | 新注册用户的默认头像指向本机 |
-| `scripts/sync-key.js`、`scripts/migrate-keys-2048.js`、`scripts/migrate-oaep.js` | `mongodb://127.0.0.1:27017/db_blog` | 运维脚本各自写死的数据库地址，部署环境不同时需同步修改 |
+| `uploadURL` | `http://127.0.0.1:3000/` | 上传接口返回的图片 URL 会写入数据库；必须改成公网 HTTPS 根地址 |
+| `dbURL` | `mongodb://127.0.0.1:27017/db_blog` | 服务、密钥脚本、迁移脚本、回归脚本统一读取 |
+| `host` / `port` | `0.0.0.0:3000` | `bin/www` 使用；只经 Nginx 暴露时把 `host` 改成 `127.0.0.1` |
+| `corsOrigins` | `true` | 上线改为 `['https://实际域名']` |
+| `uploadPath` | `process.cwd()/uploads` | 可改成发布目录之外的持久路径 |
+
+- `models/User.js` 与 `models/Article.js` 已移除默认头像/封面，新用户和新文章不再写默认图片；前端头像缺失显示昵称首字，封面缺失不渲染封面区域。
+- 已有用户继续保留旧默认头像；已有文章如果仍保存旧默认封面，可用 `--unset-default-covers` 清空。历史绝对 URL 用 `scripts/update-image-urls.js`（默认 dry-run，`--apply` 写库）替换/清理。
+
+> 完整上线清单与 Nginx 示例见 [docs/deployment.md](./docs/deployment.md)。除上表外还包括：`uploads/` 持久目录（Docker 需 volume）、Nginx `client_max_body_size >= 3m`、`/article` 与 `/user` 图片用带扩展名的正则 location（避免拦截 `/user` API）、同域名部署可省略前端 `.env.production`、`auth/` 与 MongoDB 备份；如果 `config.js` 保留相对路径，PM2/systemd 工作目录必须固定为后端根目录。
 
 ### 部署与运维注意
 

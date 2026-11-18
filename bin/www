@@ -5,14 +5,15 @@
  */
 
 var app = require('../app');
+var config = require('../config');
 var debug = require('debug')('express-sign:server');
 var http = require('http');
 
 /**
- * Get port from environment and store in Express.
+ * Get port/host from config and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '3000');
+var port = normalizePort(config.port);
 app.set('port', port);
 
 /**
@@ -22,10 +23,10 @@ app.set('port', port);
 var server = http.createServer(app);
 
 /**
- * Listen on provided port, on all network interfaces.
+ * Listen on config.host (default 0.0.0.0).
  */
 
-server.listen(port);
+server.listen(port, config.host);
 server.on('error', onError);
 server.on('listening', onListening);
 

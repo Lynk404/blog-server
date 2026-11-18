@@ -6,7 +6,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "nodemon ./bin/www"
+    "start": "nodemon ./bin/www",
+    "update:image-urls": "node scripts/update-image-urls.js"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",

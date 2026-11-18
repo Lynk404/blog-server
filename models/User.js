@@ -26,8 +26,8 @@ const { encrypt, decrypt } = require('../core/util/util')
 
   avatar 头像
   type: String (URL)
-  default: "http://127.0.0.1:3000/public/images/avatar.jpg"
-  
+  无默认值；未设置时前端显示昵称首字
+
 
   nikname 昵称
   type: String
@@ -88,8 +88,7 @@ const schema = new mongoose.Schema({
     unique: true
   },
   avatar: {
-    type: String, //URL,
-    default: "http://127.0.0.1:3000/images/avatar.png"
+    type: String //URL；无默认值，未设置时前端显示昵称首字
   },
 
   nikname: {

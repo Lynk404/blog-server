@@ -12,6 +12,7 @@
 | --- | --- |
 | [API 接口文档](./docs/api/api.md) | 全部 HTTP 接口、请求 / 响应、鉴权规则、资源权限矩阵 |
 | [数据库设计文档](./docs/db/README.md) | 5 个 MongoDB 集合的字段、约束与关联关系 |
+| [部署与上线准备](./docs/deployment.md) | 单机 VPS 拓扑、图片存储、Nginx、备份与上线检查清单 |
 
 ---
 
@@ -58,12 +59,17 @@ blog-server/
 
 | 字段 | 说明 |
 | --- | --- |
-| `host` / `port` | 服务监听地址与端口（默认 `127.0.0.1:3000`；启动时可用 `PORT` 环境变量覆盖端口） |
+| `host` / `port` | 监听地址与端口，`bin/www` 使用；默认 `0.0.0.0:3000`，可用 `HOST`/`PORT` 覆盖 |
+| `dbURL` | MongoDB 地址；服务、密钥脚本、迁移脚本、回归脚本统一读取，可用 `MONGODB_URI` 覆盖 |
 | `keyPath` | RSA 密钥目录 |
 | `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（`auth/public.cer`、`auth/private.cer`，2048 位） |
 | `jwtPubKeyPath` / `jwtPriKeyPath` | JWT 验签公钥 / 签发私钥（`auth/jwt-public.pem`、`auth/jwt-private.pem`，2048 位，需单独生成） |
-| `uploadPath` / `uploadURL` | 上传文件存储目录与对外访问前缀 |
+| `uploadPath` / `uploadURL` | 上传文件存储目录与图片对外根地址 |
+| `legacyUploadURL` | 旧图片地址，仅供 `scripts/update-image-urls.js` 迁移历史数据 |
+| `corsOrigins` | CORS 来源；开发默认 `true`，上线建议改为前端域名数组 |
 | `maxFileSize` | 单文件最大字节数（默认 2097152，2MB） |
+
+> 应用侧上线配置集中在本文件：`uploadURL` 会被写入 `Article.cover` / `User.avatar`，生产必须改成公网 HTTPS 根地址（如 `https://forum.example.com/`）；`dbURL` 改动后所有脚本同步生效。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面，新用户和新文章不再写入默认图片。`uploadPath` 默认基于 `process.cwd()`，可在 `config.js` 改成发布目录外的绝对路径；保留默认值时服务必须从后端根目录启动。完整上线步骤见 [部署与上线准备](./docs/deployment.md)。
 
 ## 📂 核心数据模型
 项目包含 5 个核心数据集合（详见 [数据库设计文档](./docs/db/README.md)）：
@@ -111,6 +117,14 @@ npm start
 ```
 
 默认服务地址：`http://127.0.0.1:3000`
+
+---
+
+## 🚀 部署
+
+当前图片存本地 `uploads/`，适合单台 VPS + 持久磁盘。应用侧上线配置集中在 `config.js`（图片 URL、数据库、监听地址、CORS、上传目录）；历史图片 URL 用 `scripts/update-image-urls.js` 迁移。Nginx、HTTPS、密钥与备份仍需按服务器环境配置。
+
+完整步骤、Nginx 示例和检查清单见 [部署与上线准备](./docs/deployment.md)。
 
 ---
 
