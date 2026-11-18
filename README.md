@@ -130,5 +130,7 @@ npm start
 | 上传 | `POST /upload/:classify`（只允许图片） | 是 |
 | 校验 | `GET /index` | 是 |
 
+> `express.json` / `express.urlencoded` 的请求体上限为 **2 MB**（`app.js`）。帖子正文在客户端经过 `encodeURIComponent` 后发送，中文约膨胀 9 倍；超过上限返回 `413`，错误文案为「请求内容过大」。
+
 
 ---

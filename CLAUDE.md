@@ -101,7 +101,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 架构
 
-**请求管线（`app.js`）。** 中间件按以下顺序执行：CORS、morgan、JSON 和 urlencoded 解析器、cookie-parser、`public/` 和 `uploads/` 的静态文件服务（`uploads/` 带 `nosniff`），然后是 `express-jwt`（RS256，用公钥验证，带有 `unless` 白名单）。之后是路由，最底部是统一的错误处理器，它把错误规范化为 `{ code, message }`。成功响应的格式为 `{ message, data }`。
+**请求管线（`app.js`）。** 中间件按以下顺序执行：CORS、morgan、JSON 和 urlencoded 解析器（`limit: '2mb'`；正文在客户端经过 `encodeURIComponent`，中文约占 9 倍，旧的 100 KB 默认值约 1.1 万汉字即返回 413）、cookie-parser、`public/` 和 `uploads/` 的静态文件服务（`uploads/` 带 `nosniff`），然后是 `express-jwt`（RS256，用公钥验证，带有 `unless` 白名单）。之后是路由，最底部是统一的错误处理器，它把错误规范化为 `{ code, message }`；413 文案统一为「请求内容过大」。成功响应的格式为 `{ message, data }`。
 
 **鉴权。**
 - `routes/admin.js` 处理 `POST /admin/login` 和 `POST /admin/register`。`core/sendToken.js` 用 `auth/jwt-private.pem` 签发 RS256 JWT，`app.js` 的 `express-jwt` 用 `auth/jwt-public.pem` 验签（`core/rsaControl.js` 的 `getJwtPublicKeySync` / `getJwtPrivateKey`）。载荷为 `{ username, _id }`，有效期 3 天。JWT 密钥与密码密钥分离后，此前的 token 全部失效。

@@ -27,8 +27,9 @@ app.use(cors({
 }))
 
 app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// 正文在客户端经过 encodeURIComponent，中文会膨胀到约 9 倍；默认 100kb 只够约 1.1 万汉字
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 // Express 5 在无请求体时 req.body 为 undefined，Express 4 为 {}；统一为 {} 以保持原行为
 app.use((req, res, next) => {
   req.body = req.body || {}
@@ -136,7 +137,8 @@ const ERROR_CODE_MAP = {
 
 }
 const ERROR_STATUS_MAP = {
-  '401': "无权限操作,请先登录"
+  '401': "无权限操作,请先登录",
+  '413': "请求内容过大"
 }
 
 const QUE_MAP = {
