@@ -71,8 +71,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 命令
 
 - 安装依赖：`npm install`
-- 开发服务器：`npm start`（运行 `nodemon ./bin/www`）。默认地址：`http://127.0.0.1:3000`。设置 `PORT` 环境变量可覆盖端口。
-- `package.json` 的 dependencies 中没有列出 `nodemon`。如果 `npm start` 报 “nodemon not found”，请全局安装它，或直接运行 `node ./bin/www`。
+- 开发服务器：`npm run dev`（运行 `nodemon ./bin/www`，热更新）。默认地址：`http://127.0.0.1:3000`。设置 `PORT` 环境变量可覆盖端口。
+- `npm start` 直接运行 `node ./bin/www`，不监听文件改动。`package.json` 的 dependencies 中没有列出 `nodemon`，`npm run dev` 报 “nodemon not found” 时请全局安装。
 - 端到端回归（未配置测试运行器/linter，也没有 `npm test`）：
   - 全部：`node scripts/regress/run.js`（约数秒，不符合预期时退出码非 0）
   - 跳过上传：`node scripts/regress/run.js --no-upload`（不写任何文件）
@@ -127,13 +127,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **其他端点。** 每个都位于 `routes/` 下各自的路由文件中。
 - `/user`：获取、修改（`PUT`，改密码需旧密码且会使旧 token 失效；可改 `password`/`email`/`nikname`/`avatar`）和注销（`DELETE`，需当前密码）当前用户，使用 `req._id`。注销的级联规则较重，会删除他人在本人专栏中的文章和他人在本人文章下的评论，详见 `docs/api/other/other.md`。
 - `/keys`：返回 `Key` 集合中的公钥。
-- `/upload/:classify`：`multer` 存储到 `uploads/{user|article}/`，只允许图片扩展名（`fileFilter`），未知分类在落盘前返回 400。头像上传（`user`）的 `uid` 必须等于当前用户，缺失返回 422、他人返回 403；multer 已落盘的文件在拒绝时由 `discardFiles` 删除。`article` 分类返回 `{ errno, data }`，即富文本编辑器所需的格式。
+- `/upload/:classify`：`multer` 存储到 `uploads/{user|article}/`，只允许图片扩展名（`fileFilter`），未知分类在落盘前返回 400。返回值为相对路径（`/article/xxx.jpg`、`/user/xxx.jpg`），由浏览器按站点域名解析。头像上传（`user`）的 `uid` 必须等于当前用户，缺失返回 422、他人返回 403；multer 已落盘的文件在拒绝时由 `discardFiles` 删除。`article` 分类返回 `{ errno, data }`，即富文本编辑器所需的格式。
 - `/articles/search`：`GET`，免鉴权，必须带 `query[q]`（缺失返回 400），对 `title` 和 `content` 做转义后的正则搜索。
 - `/articles/likes/:id`：`POST`，需登录，使 `like_num` 加 1。
 
 **模型（`models/`）。** Mongoose 8，共五个集合：`User`、`Article`、`Column`、`Comment` 和 `Key`。日期由 `core/util/util.js` 中的 `formatDate` 格式化。`Article.content` 的 setter 会执行 `decodeURIComponent`，并把 `"` 替换为 `'`。
 
-**配置。** `config.js` 是应用侧部署配置的唯一入口：监听地址/端口（`host`/`port`）、数据库（`dbURL`）、密钥目录（`keyPath`，四把密钥路径都由它派生）、上传目录（`uploadPath`）、图片对外地址（`uploadURL`）、旧地址（`legacyUploadURL`）、CORS 来源（`corsOrigins`）与最大上传大小（2 MB）。`PUBLIC_URL`、`MONGODB_URI`、`KEY_PATH`、`UPLOAD_PATH`、`HOST`、`PORT` 可覆盖默认值。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面；头像缺失时前端显示昵称首字，封面缺失时不渲染封面区域。
+**配置。** `config.js` 是应用侧部署配置的唯一入口：监听地址/端口（`host`/`port`）、数据库（`dbURL`）、密钥目录（`keyPath`，四把密钥路径都由它派生）、上传目录（`uploadPath`）、历史图片旧前缀（`legacyUploadURLs`，仅供迁移脚本）、CORS 来源（`corsOrigins`）与最大上传大小（2 MB）。`MONGODB_URI`、`KEY_PATH`、`UPLOAD_PATH`、`HOST`、`PORT` 可覆盖默认值。图片地址存相对路径，配置里没有域名项。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面；头像缺失时前端显示昵称首字，封面缺失时不渲染封面区域。
 
 ## 已知问题与待办
 
@@ -160,14 +160,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 配置 | 默认值 | 上线影响 |
 | --- | --- | --- |
-| `uploadURL` | `http://127.0.0.1:3000/` | 上传接口返回的图片 URL 会写入数据库；必须改成公网 HTTPS 根地址 |
 | `dbURL` | `mongodb://127.0.0.1:27017/db_blog` | 服务、密钥脚本、迁移脚本、回归脚本统一读取 |
 | `host` / `port` | `0.0.0.0:3000` | `bin/www` 使用；只经 Nginx 暴露时把 `host` 改成 `127.0.0.1` |
 | `corsOrigins` | `true` | 上线改为 `['https://实际域名']` |
 | `uploadPath` | `process.cwd()/uploads` | 可改成发布目录之外的持久路径 |
 
 - `models/User.js` 与 `models/Article.js` 已移除默认头像/封面，新用户和新文章不再写默认图片；前端头像缺失显示昵称首字，封面缺失不渲染封面区域。
-- 已有用户继续保留旧默认头像；已有文章如果仍保存旧默认封面，可用 `--unset-default-covers` 清空。历史绝对 URL 用 `scripts/update-image-urls.js`（默认 dry-run，`--apply` 写库）替换/清理。
+- 图片地址已改为相对路径（上传接口返回 `/article/...`、`/user/...`），配置里不再有域名；历史绝对 URL 用 `scripts/update-image-urls.js`（默认 dry-run，`--apply` 写库）去掉旧前缀。
+- 已有用户继续保留旧默认头像；已有文章如果仍保存旧默认封面，可用 `--unset-default-covers` 清空。
 
 > 完整上线清单与 Nginx 示例见 [docs/deployment.md](./docs/deployment.md)。除上表外还包括：`uploads/` 持久目录（Docker 需 volume）、Nginx `client_max_body_size >= 3m`、`/article` 与 `/user` 图片用带扩展名的正则 location（避免拦截 `/user` API）、同域名部署可省略前端 `.env.production`、`auth/` 与 MongoDB 备份；如果 `config.js` 保留相对路径，PM2/systemd 工作目录必须固定为后端根目录。
 

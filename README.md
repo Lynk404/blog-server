@@ -29,7 +29,7 @@
 | 文件上传 | `multer` |
 | 错误处理 | `http-assert`、`http-errors` |
 | 命名转换 | `inflection`（复数 → 单数 Pascal 命名，用于动态加载 Model） |
-| 开发工具 | `nodemon`（`npm start` 热更新） |
+| 开发工具 | `nodemon`（`npm run dev` 热更新） |
 
 ---
 
@@ -64,12 +64,12 @@ blog-server/
 | `keyPath` | RSA 密钥目录；四把密钥路径都由它派生，可用 `KEY_PATH` 覆盖 |
 | `pubKeyPath` / `priKeyPath` | 密码加密用的公钥 / 私钥（由 `keyPath` 派生：`public.cer`、`private.cer`，2048 位） |
 | `jwtPubKeyPath` / `jwtPriKeyPath` | JWT 验签公钥 / 签发私钥（由 `keyPath` 派生：`jwt-public.pem`、`jwt-private.pem`，2048 位，需单独生成） |
-| `uploadPath` / `uploadURL` | 上传文件存储目录与图片对外根地址 |
-| `legacyUploadURL` | 旧图片地址，仅供 `scripts/update-image-urls.js` 迁移历史数据 |
+| `uploadPath` | 上传文件存储目录 |
+| `legacyUploadURLs` | 历史图片的旧绝对前缀数组，仅供 `scripts/update-image-urls.js` 迁移为相对路径 |
 | `corsOrigins` | CORS 来源；开发默认 `true`，上线建议改为前端域名数组 |
 | `maxFileSize` | 单文件最大字节数（默认 2097152，2MB） |
 
-> 应用侧上线配置集中在本文件：`uploadURL` 会被写入 `Article.cover` / `User.avatar`，生产必须改成公网 HTTPS 根地址（如 `https://forum.example.com/`）；`dbURL` 改动后所有脚本同步生效；`keyPath` 一处控制四把密钥。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面，新用户和新文章不再写入默认图片。`uploadPath`、`keyPath` 默认基于 `process.cwd()`，可在 `config.js` 改成发布目录外的绝对路径；保留默认值时服务必须从后端根目录启动。完整上线步骤见 [部署与上线准备](./docs/deployment.md)。
+> 图片地址以相对路径（`/article/xxx.jpg`、`/user/xxx.jpg`）写入 `Article.cover` / `User.avatar`，由浏览器按当前站点域名解析，本地与线上不需要分别配置域名；历史绝对 URL 用 `scripts/update-image-urls.js` 去掉旧前缀。应用侧上线配置集中在本文件：`dbURL` 改动后所有脚本同步生效；`keyPath` 一处控制四把密钥。`models/User.js` 与 `models/Article.js` 已移除默认头像/封面，新用户和新文章不再写入默认图片。`uploadPath`、`keyPath` 默认基于 `process.cwd()`，可在 `config.js` 改成发布目录外的绝对路径；保留默认值时服务必须从后端根目录启动。完整上线步骤见 [部署与上线准备](./docs/deployment.md)。
 
 ## 📂 核心数据模型
 项目包含 5 个核心数据集合（详见 [数据库设计文档](./docs/db/README.md)）：
@@ -100,7 +100,8 @@ blog-server/
 
 | 命令 | 说明 |
 | --- | --- |
-| `npm start` | `nodemon ./bin/www`，开发模式启动 |
+| `npm run dev` | `nodemon ./bin/www`，开发模式（热更新） |
+| `npm start` | `node ./bin/www`，直接启动，不监听文件改动 |
 
 ---
 
@@ -113,7 +114,7 @@ npm install
 # 2. 确保本地 MongoDB 已启动（默认 127.0.0.1:27017）
 
 # 3. 启动服务（nodemon 热更新）
-npm start
+npm run dev
 ```
 
 默认服务地址：`http://127.0.0.1:3000`
@@ -122,7 +123,7 @@ npm start
 
 ## 🚀 部署
 
-当前图片存本地 `uploads/`，适合单台 VPS + 持久磁盘。应用侧上线配置集中在 `config.js`（图片 URL、数据库、监听地址、CORS、上传目录）；历史图片 URL 用 `scripts/update-image-urls.js` 迁移。Nginx、HTTPS、密钥与备份仍需按服务器环境配置。
+当前图片存本地 `uploads/`，适合单台 VPS + 持久磁盘。图片地址存相对路径，换域名不用迁移；应用侧上线配置集中在 `config.js`（数据库、监听地址、CORS、上传目录），历史绝对 URL 用 `scripts/update-image-urls.js` 去掉前缀。Nginx 需同域提供 `/article/`、`/user/`、`/images/`；HTTPS、密钥与备份仍需按服务器环境配置。
 
 完整步骤、Nginx 示例和检查清单见 [部署与上线准备](./docs/deployment.md)。
 

@@ -20,10 +20,12 @@ module.exports = {
   dbURL: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/db_blog',
   // 上传目录；部署时可改成发布目录之外的持久路径
   uploadPath: process.env.UPLOAD_PATH || path.join(process.cwd(), '/uploads'),
-  // 图片对外根地址：上线必须改成公网 HTTPS 域名，例如 https://forum.example.com/
-  uploadURL: process.env.PUBLIC_URL || `http://127.0.0.1:${port}/`,
-  // 旧图片地址，仅供 scripts/update-image-urls.js 迁移历史数据使用
-  legacyUploadURL: process.env.LEGACY_UPLOAD_URL || 'http://127.0.0.1:3000/',
+  // 上传接口统一返回相对路径（/article/xxx.jpg），由浏览器按当前站点域名解析，本地与线上共用同一套数据
+  // 历史数据中出现过的旧绝对前缀，仅供 scripts/update-image-urls.js 迁移使用，可按需追加
+  legacyUploadURLs: [
+    'http://127.0.0.1:3000/',
+    'http://localhost:5173/'
+  ],
   // CORS 来源：开发保持 true（反射任意来源）；上线建议改成 ['https://forum.example.com']
   corsOrigins: true,
   maxFileSize: 2 * 1024 * 1024

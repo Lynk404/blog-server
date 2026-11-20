@@ -317,7 +317,13 @@ async function scenarioUpload (dir, t) {
       const r = await fetch(`${srv.base}/upload/article`, { method: 'POST', headers: tok ? { Authorization: 'Bearer ' + tok } : {}, body: fd })
       return r.status
     }
-    check('上传图片 → 200', await up(t, Buffer.from('hi'), 'a.png'), 200)
+    const okUp = await fetch(`${srv.base}/upload/article`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + t },
+      body: (() => { const fd = new FormData(); fd.append('file', new Blob([Buffer.from('hi')]), 'a.png'); return fd })()
+    })
+    check('上传图片 → 200', okUp.status, 200)
+    check('上传返回相对路径', (await okUp.json()).data?.[0]?.startsWith('/article/'), true)
     check('上传非图片 → 422', await up(t, Buffer.from('hi'), 'x.html'), 422)
     check('上传超限图片 → 422', await up(t, Buffer.alloc(2 * 1024 * 1024 + 1, 97), 'b.png'), 422)
     check('未知分类 → 400', (await fetch(`${srv.base}/upload/bogus`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: (() => { const fd = new FormData(); fd.append('file', new Blob([Buffer.from('hi')]), 'c.png'); return fd })() })).status, 400)
@@ -339,7 +345,9 @@ async function scenarioUpload (dir, t) {
     before = countUserFiles()
     check('头像缺 uid → 422', (await upAvatar(undefined)).status, 422)
     check('头像缺 uid 时不留文件', countUserFiles(), before)
-    check('头像 uid 为本人 → 200', (await upAvatar(own)).status, 200)
+    const ownAvatar = await upAvatar(own)
+    check('头像 uid 为本人 → 200', ownAvatar.status, 200)
+    check('头像返回相对路径', (await ownAvatar.json()).data.fileURL.startsWith('/user/'), true)
   } finally {
     srv.child.kill()
   }

@@ -35,7 +35,7 @@ MongoDB（127.0.0.1:27017/db_blog）
 ```
 
 - Nginx 对公网只开放 80/443；Node 与 MongoDB 只监听本机或只允许本机访问。
-- 图片 URL 是**绝对地址**，`uploadURL` 必须等于用户浏览器能访问的 HTTPS 根地址。
+- 图片 URL 存**相对路径**（`/article/xxx.jpg`、`/user/xxx.jpg`），浏览器按页面所在域名解析；同域部署时由 Nginx 直接提供，换域名不需要迁移数据。
 - 前端与后端建议使用同一个域名，通过 Nginx 路径分流，避免额外 CORS 配置。
 
 ---
@@ -48,12 +48,11 @@ MongoDB（127.0.0.1:27017/db_blog）
 
 | 字段 | 说明 |
 | --- | --- |
-| `uploadURL` | 图片对外根地址，必须改成 `https://实际域名/` |
 | `dbURL` | MongoDB 地址；服务、密钥脚本、迁移脚本、回归脚本都读取这里 |
 | `host` / `port` | Node 监听地址与端口，`bin/www` 使用 |
 | `keyPath` | 密钥目录；四把密钥路径由它派生，可用 `KEY_PATH` 覆盖 |
 | `uploadPath` | 上传目录；可改为发布目录之外的绝对路径 |
-| `legacyUploadURL` | 旧图片地址，仅 `scripts/update-image-urls.js` 使用 |
+| `legacyUploadURLs` | 历史图片的旧绝对前缀数组，仅 `scripts/update-image-urls.js` 使用 |
 | `corsOrigins` | CORS 来源；开发为 `true`，上线建议改为 `['https://实际域名']` |
 | `maxFileSize` | 单文件上限，默认 2MB |
 
@@ -66,8 +65,7 @@ module.exports = {
   dbURL: 'mongodb://127.0.0.1:27017/db_blog',
   keyPath: '/var/www/yesforum/server/auth',
   uploadPath: '/var/www/yesforum/uploads',
-  uploadURL: 'https://forum.example.com/',
-  legacyUploadURL: 'http://127.0.0.1:3000/',
+  legacyUploadURLs: ['http://127.0.0.1:3000/'],
   corsOrigins: ['https://forum.example.com'],
   // maxFileSize 保持原值；四把密钥路径由 keyPath 自动派生
 }
@@ -75,9 +73,9 @@ module.exports = {
 
 要求：
 
-- `uploadURL` 使用 `https://`，否则 HTTPS 页面会拦截图片（混合内容）。
-- 保留末尾 `/`；上传接口按 `${uploadURL}/article/<文件名>` 的规则拼接。
-- 不要写 `localhost`、`127.0.0.1` 或只写域名不带协议。
+- 上传接口返回相对路径（`/article/<文件名>`、`/user/<文件名>`），数据库里不写域名，本地与线上共用同一套数据、换域名不需要迁移。
+- 图片必须由页面所在域名提供：同域部署时 Nginx 直接服务 `/article/`、`/user/`、`/images/`（见 2.4）；前端与 API 分域时，前端域名的 Nginx 也要代理这三个路径。
+- `legacyUploadURLs` 只用于迁移历史数据，保持默认值即可；历史数据中出现过其他前缀时再追加。
 - `dbURL` 改了以后，所有脚本都跟着变，不需要再逐个改 `sync-key.js`、迁移脚本、回归脚本。
 - **新用户不再有默认头像，新文章不再有默认封面**：`models/User.js` 与 `models/Article.js` 的 `default` 已移除。头像缺失时前端显示昵称首字；封面缺失时不渲染封面区域。
 - 已有用户仍保留数据库里的旧默认头像；已有文章如果仍保存旧默认封面，用 2.2 的 `--unset-default-covers` 清空。旧用户头像按当前决定不清空。
@@ -85,7 +83,7 @@ module.exports = {
 
 ### 2.2 历史图片 URL（`scripts/update-image-urls.js`）
 
-现有数据库里的 `Article.cover`、`User.avatar` 是旧的 `http://127.0.0.1:3000/...` 绝对地址。只改配置不会改历史数据，上线后会坏图。
+现有数据库里的 `Article.cover`、`User.avatar` 仍是旧的 `http://127.0.0.1:3000/...` 绝对地址。上传接口改为返回相对路径后，这些旧值必须去掉前缀（`http://127.0.0.1:3000/article/a.jpg` → `/article/a.jpg`），否则线上会指向用户自己的机器。
 
 如果保留现有数据，先备份数据库（见第 4 节），然后在 `blog-server` 目录执行：
 
@@ -100,11 +98,11 @@ node scripts/update-image-urls.js --apply
 node scripts/update-image-urls.js --apply --unset-default-covers
 ```
 
-- 脚本读取 `config.legacyUploadURL` 和 `config.uploadURL`，不需要再改脚本。
-- 默认是 dry-run；`--apply` 才写库。
+- 脚本读取 `config.legacyUploadURLs`，把每个旧前缀替换为 `/`；不需要再改脚本。
+- 默认是 dry-run；`--apply` 才写库。脚本可重复执行，已迁移的行不会再次匹配。
 - 更新 `Article.cover`、`Article.content`、`User.avatar`；使用原生集合更新，避免触发 `Article.content` 的 Mongoose setter（`decodeURIComponent` / 引号替换）。
 - `--unset-default-avatars` 可以把仍等于旧默认头像的 `User.avatar` 清空；当前决定是**旧用户继续显示默认头像**，所以默认不加这个参数。
-- `--unset-default-covers` 会把 `cover` 等于旧默认封面（`legacyUploadURL + article/article-cover.jpg`）的文章清空封面；不加则旧文章继续显示默认封面。
+- `--unset-default-covers` 会把 `cover` 等于旧默认封面（`<旧前缀>article/article-cover.jpg`）的文章清空封面；不加则旧文章继续显示默认封面。
 - 当前数据中正文没有内部上传 URL；脚本仍会处理 `content`，防止以后有遗漏。
 - 如果上线使用**全新数据库**，可以跳过替换；新用户和新文章本来就不会再写入默认头像/封面。
 - 替换前先统计数量，替换后抽查若干帖子/用户。
@@ -187,7 +185,7 @@ server {
 
 - 上面的 `root /var/www/yesforum/uploads` 会让 `/article/a.jpg` 映射到 `/var/www/yesforum/uploads/article/a.jpg`，与当前 `express.static(uploads)` 的路径一致。
 - 如果图片改为由 Node 提供，可把第 3 段换成 `proxy_pass http://127.0.0.1:3000;`；性能不如 Nginx 直接读文件，但配置更少。
-- 如果 API 使用独立子域名（如 `api.example.com`），`uploadURL` 和前端 `VITE_APP_BASE_URL` 都改成该子域名，并在后端配置 CORS 白名单。
+- 如果 API 使用独立子域名（如 `api.example.com`），前端 `VITE_APP_BASE_URL` 改成该子域名，并在后端配置 CORS 白名单。图片是相对路径，仍由前端域名的 Nginx 提供，前端域也要配置上面对 `/article/`、`/user/`、`/images/` 的处理。
 - `include /etc/nginx/proxy_params` 是常见发行版自带文件；若没有，至少设置 `proxy_set_header Host $host;`、`X-Real-IP`、`X-Forwarded-For`、`X-Forwarded-Proto $scheme;`。
 - 图片文件名带时间戳，内容不会原地覆盖，30 天缓存是安全的。
 
@@ -216,6 +214,7 @@ npm run build
 - 产物在 `blog-web/dist/`，部署到 Nginx 的 `root`。
 - 生产必须启用 HTTPS：密码加密使用 WebCrypto，`crypto.subtle` 只在 HTTPS 或 localhost 下可用。
 - 如果前端与后端不同域，确认 `config.corsOrigins` 包含前端域名。
+- 图片是相对路径，页面所在域名必须能访问 `/article/`、`/user/`、`/images/`：同域部署时由 2.4 的 Nginx 配置提供；API 独立子域名时，前端域也要代理这三个路径。
 
 ### 2.6 密钥、MongoDB 与进程
 
@@ -251,7 +250,7 @@ module.exports = {
 }
 ```
 
-- `npm start` 调用的 nodemon 没有写进 `package.json`；生产可以直接 `node ./bin/www` 或用 PM2 的 `script: 'bin/www'`。
+- 开发用 `npm run dev`（nodemon 热更新）；生产用 `npm start`（`node ./bin/www`）或 PM2 的 `script: 'bin/www'`。nodemon 不在 `package.json` 依赖中，只影响开发。
 - Node 版本要求 ≥ 20。
 
 ### 2.7 CORS
@@ -296,36 +295,36 @@ tar xzf /var/backups/uploads-YYYY-MM-DD.tar.gz -C /var/www/yesforum
 ```
 
 - 代码回滚时保留上一版 `dist/` 与后端代码目录。
-- 如果改过 `uploadURL` 并替换了数据库图片 URL，回滚代码时要同时恢复数据库，否则新 URL 可能无法解析。
-- 上线前记录旧 `uploadURL`、新域名、数据库替换数量。
+- 如果执行过图片 URL 迁移（绝对地址 → 相对路径），回滚到旧代码时要同时恢复数据库备份，否则旧代码会把相对路径当作不完整地址使用。
+- 上线前记录数据库 URL 替换数量。
 
 ---
 
 ## 4. 建议改进（不阻塞上线）
 
-- **配置环境变量化**：`config.js` 已支持 `PUBLIC_URL`、`MONGODB_URI`、`UPLOAD_PATH`、`HOST`、`PORT` 等环境变量覆盖；默认值仍集中在 `config.js`，只有需要容器/多环境覆盖时才用环境变量。
+- **配置环境变量化**：`config.js` 已支持 `MONGODB_URI`、`UPLOAD_PATH`、`KEY_PATH`、`HOST`、`PORT` 等环境变量覆盖；默认值仍集中在 `config.js`，只有需要容器/多环境覆盖时才用环境变量。
 - **上传校验**：当前只校验扩展名，`upload.any()` 也没有文件数量上限；建议增加文件头魔数校验和 `limits.files`。
 - **孤儿文件清理**：删除文章/用户/更换头像不会删除 `uploads/` 里的旧文件；后续可加 dry-run 清理脚本。
 - **uploads 与 Git**：`uploads/` 目前未加入 `.gitignore`，共有 30 个图片文件被 Git 跟踪。建议只保留默认封面/头像，其余忽略；删除仓库内文件前单独确认。
 - **多实例**：本地磁盘无法在多个 Node 实例间共享；未来上多实例/Serverless 时再评估 GridFS 或对象存储。
-- **图片 URL 形式**：当前数据库存绝对 URL，换域名要迁移；未来可改成相对路径 + 前端/接口统一拼域名，减少域名绑定。
+- **图片 URL 形式**：已改为数据库存相对路径（`/article/...`），换域名、本地/线上切库都不需要迁移；前提是图片路径在页面域名下可访问（同域 Nginx 或前端域代理）。
 
 ---
 
 ## 5. 上线检查清单
 
 - [ ] 域名解析到服务器，HTTPS 证书可用
-- [ ] `config.js` 的 `uploadURL` 是 `https://实际域名/`
 - [ ] `config.js` 的 `dbURL`、`host`/`port`、`corsOrigins`、`keyPath`、`uploadPath` 已按线上环境填写
 - [ ] 新用户无默认头像、新文章无默认封面，头像显示昵称首字、封面区域不渲染
-- [ ] 历史 `Article.cover` / `User.avatar` 已替换，或确认使用全新数据库
+- [ ] 历史 `Article.cover` / `User.avatar` 已改为相对路径（`update-image-urls.js`），或确认使用全新数据库
 - [ ] 旧默认封面是否清空已确认（`--unset-default-covers`）
 - [ ] 同域名部署时未依赖 `.env.production`；跨域时 `VITE_APP_BASE_URL` 正确，`dist/` 已构建
 - [ ] `uploads/` 位于持久目录，Node 可写、Nginx 可读，已纳入备份
 - [ ] `auth/` 四把密钥就绪，已执行 `sync-key.js`
 - [ ] MongoDB 只监听本机，备份任务已配置
 - [ ] Nginx `client_max_body_size` ≥ 3m
-- [ ] Nginx 图片正则、`/user` API、`/articles/search`、SPA fallback 均验证通过
+- [ ] Nginx 图片正则、`/images/`、`/user` API、`/articles/search`、SPA fallback 均验证通过
+- [ ] 相对路径图片在页面域名下可访问（同域 Nginx 直接提供；分域部署时前端域已代理 `/article/`、`/user/`、`/images/`）
 - [ ] CORS 白名单、防火墙、端口收敛（只开 80/443）
 - [ ] 上传封面/头像、列表/详情/评论头像、重启后图片仍可访问
 - [ ] `git clean -fd` 不在服务器工作目录执行
@@ -338,7 +337,7 @@ tar xzf /var/backups/uploads-YYYY-MM-DD.tar.gz -C /var/www/yesforum
 - 本地 `uploads/` 只适合单机持久磁盘；容器无 volume、Serverless、多实例不适用。
 - 删除文章/用户不会清理图片文件，磁盘会持续增长，需要人工或脚本清理。
 - 上传只校验扩展名，没有文件头校验和文件数量上限。
-- 图片 URL 是绝对地址，换域名需要更新数据库。
+- 图片 URL 是相对路径，换域名不需要更新数据库，但图片路径必须能在页面域名下访问；前后端分域部署时要在前端域代理 `/article/`、`/user/`、`/images/`。
 - 后端没有加载 `.env` 的代码；`config.js` 支持环境变量覆盖，生产变量通过 PM2/systemd/容器注入，默认值仍在 `config.js`。
 - 前端同域名部署不需要 `.env.production`；跨域部署才需要设置 `VITE_APP_BASE_URL`。
 - `uploads/` 中部分演示图片被 Git 跟踪，部署与清理时需要区分默认资源和用户上传。

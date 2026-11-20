@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const assert = require('http-assert');
 const multer = require("multer")
-const { uploadPath, uploadURL, maxFileSize } = require('../config')
+const { uploadPath, maxFileSize } = require('../config')
 const path = require('path')
 const fs = require('fs');
 const createError = require('http-errors');
@@ -65,8 +65,9 @@ router.post('/:classify', (req, res, next) => {
     }
     let fileURLS = req.files.map(item => {
       let { destination, filename } = item
+      // 只存相对路径：开发时由 Vite 代理、线上由 Nginx 同域提供，换域名不需要迁移数据
       // 用字符串拼接而非 path.join：path.join 在 Windows 下会产出 .\ 前缀
-      return `${uploadURL.replace(/\/+$/, '')}/${path.parse(destination).name}/${filename}`
+      return `/${path.parse(destination).name}/${filename}`
     })
     let resultData = {
       message: "上传成功",
